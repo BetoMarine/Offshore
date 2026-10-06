@@ -516,7 +516,13 @@ try {
     throw new Error('catch up 300 was not kept while overdue remained')
   }
   await clickText('Next')
-  await clickSel('[data-act="back"]')
+  for (let step = 0; step < 6; step += 1) {
+    if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o11') break
+    await clickSel('[data-act="back"]')
+  }
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') {
+    throw new Error('could not return to the month before clearing overdue')
+  }
   await clickSel('[data-act="owe"]')
   await clickSel('[data-act="edit-lender"][data-index="0"]')
   await clickText('Next')
@@ -525,17 +531,20 @@ try {
   await clickText('Next')
   await clickText('Next')
   await clickText('No')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o02h') await clickSel('[data-act="back"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o02h') await clickSel('[data-act="back"]')
+  for (let step = 0; step < 6; step += 1) {
+    if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o11') break
+    await clickSel('[data-act="back"]')
+  }
   await clickSel('[data-act="today"]')
   await clickText('Change a part')
   await clickSel('[data-part="bills"]')
   if ((await page.$eval('[aria-label="Catch up"]', (el) => el.value)) !== '0') {
     throw new Error('catch up stayed above overdue after it was cleared')
   }
-  await clickText('Next')
-  await clickSel('[data-act="back"]')
-  await clickText('See your life')
+  await clickSel('[data-act="exit"]')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') {
+    throw new Error('exit did not open the first page')
+  }
 
   await page.evaluate(async () => {
     localStorage.setItem('planted-app', 'keep')
