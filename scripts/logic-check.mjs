@@ -4,26 +4,43 @@ import {
   LESSON_POINTS,
   billsParts,
   catchUpValue,
+  clampCatchUp,
   debtMonthly,
+  goalPlans,
   goalSurplus,
   hk,
   interestMonth,
+  isPastDate,
+  lenderFromDraft,
+  money,
   monthlyDue,
   monthsUntil,
+  noteOverdue,
   offshoreKey,
+  onTimePoints,
   overduePoints,
   overdueTotal,
   planFigures,
   projectFund,
   projectGoal,
+  reachMonth,
+  roundCents,
+  sanitizeAmount,
   scoreOf,
+  keptPoints,
 } from '../src/logic.js'
 
 const oct = new Date(2026, 9, 6)
 
 assert.equal(monthlyDue(500, 'monthly'), 500)
 assert.equal(monthlyDue(60, 'weekly'), 260)
-assert.equal(monthlyDue(100, 'biweekly'), 217)
+assert.equal(monthlyDue(100, 'biweekly'), (100 * 26) / 12)
+assert.equal(hk(monthlyDue(100, 'biweekly')), 'HK$216.67')
+assert.equal(roundCents(monthlyDue(433.33, 'weekly')), 1877.76)
+assert.equal(hk(monthlyDue(433.33, 'weekly')), 'HK$1,877.76')
+assert.equal(sanitizeAmount('433.33'), '433.33')
+assert.equal(sanitizeAmount('43.339'), '43.33')
+assert.equal(sanitizeAmount('4,333'), '4333')
 assert.equal(monthsUntil(oct, '2027-08'), 10)
 assert.equal(monthsUntil(oct, '2027-10'), 12)
 assert.equal(monthsUntil(oct, '2026-11'), 1)
@@ -105,13 +122,13 @@ assert.equal(fundShort.reaches, false)
 function scored(patch) {
   return scoreOf({
     owes: true,
-    lenders,
+    you: '1000',
+    lenders: [{ paidOnTime: true, overdue: false, overdueAmount: '' }],
     checks: {
-      paidOnTime: true,
       sentWhatSheChose: true,
-      keptHerPart: true,
+      keptAmount: '1000',
       lessonsDid: { 'ahk-send': true },
-      overdueBaseline: 500,
+      overdueBaseline: 0,
       ...patch,
     },
   }).total
@@ -133,6 +150,89 @@ assert.equal(offshoreKey('offshore-data'), true)
 assert.equal(offshoreKey('planted-app'), false)
 assert.equal(offshoreKey('Offshore-data'), false)
 assert.match(hk(5220), /HK\$5,220/)
+
+const centLenders = ['10.01', '20.02', '30.03', '40.04', '50.05'].map((left) => ({
+  left, due: left, freq: 'monthly', overdue: false,
+}))
+assert.equal(roundCents(centLenders.reduce((sum, lender) => sum + money(lender.left), 0)), 150.15)
+assert.equal(hk(150.15), 'HK$150.15')
+assert.equal(roundCents(debtMonthly(centLenders)), 150.15)
+
+const typed = lenderFromDraft({
+  name: 'Card', left: '10', interest: '4.5', interestUnknown: true, interestPeriod: 'month',
+  due: '1', freq: 'monthly', nextDate: '2026-10-20', overdue: false, paidOnTime: true,
+})
+assert.equal(typed.interestUnknown, false)
+assert.equal(typed.interest, '4.5')
+assert.equal(typed.paidOnTime, true)
+const unknown = lenderFromDraft({
+  name: 'Card', left: '10', interest: '', interestUnknown: true, interestPeriod: 'month',
+  due: '1', freq: 'monthly', nextDate: '2026-10-20', overdue: false, paidOnTime: null,
+})
+assert.equal(unknown.interestUnknown, true)
+
+const clampState = {
+  owes: true,
+  lenders: lenders.map((lender) => ({ ...lender })),
+  catchUp: '300',
+  catchUpEdited: true,
+}
+clampCatchUp(clampState)
+assert.equal(clampState.catchUp, '300')
+clampState.catchUp = '900'
+clampCatchUp(clampState)
+assert.equal(clampState.catchUp, '500')
+clampState.lenders = clampState.lenders.map((lender) => ({ ...lender, overdue: false, overdueAmount: '' }))
+clampCatchUp(clampState)
+assert.equal(clampState.catchUp, '0')
+
+assert.equal(overduePoints({
+  owes: true,
+  lenders: [{ overdue: true, overdueAmount: '800' }],
+  checks: { overdueBaseline: 500 },
+}), 0)
+assert.equal(overduePoints({
+  owes: true,
+  lenders: [{ overdue: true, overdueAmount: '250' }],
+  checks: { overdueBaseline: 500 },
+}), 10)
+assert.equal(onTimePoints({
+  owes: true,
+  lenders: [{ paidOnTime: true }, { paidOnTime: false }, { paidOnTime: true }, { paidOnTime: null }],
+}), 18)
+assert.equal(onTimePoints({ owes: false, lenders: [] }), 35)
+assert.equal(keptPoints({ you: '1000', checks: { keptAmount: '500' } }), 8)
+assert.equal(keptPoints({ you: '1000', checks: { keptAmount: '1000' } }), 15)
+assert.equal(keptPoints({ you: '0', checks: { keptAmount: '1000' } }), 0)
+
+const locked = { lenders: [{ overdue: true, overdueAmount: '500' }], checks: { overdueBaseline: null } }
+noteOverdue(locked)
+assert.equal(locked.checks.overdueBaseline, 500)
+locked.lenders[0].overdueAmount = '900'
+noteOverdue(locked)
+assert.equal(locked.checks.overdueBaseline, 500)
+
+assert.equal(isPastDate('2026-10-05', oct), true)
+assert.equal(isPastDate('2026-10-06', oct), false)
+assert.equal(reachMonth(6000, 500, oct), '2027-10')
+assert.equal(projectFund({ amount: '6000', by: '2026-11', monthly: '500' }, oct).reach, '2027-10')
+
+const split = goalPlans({
+  you: '1500',
+  fund: { monthly: '500' },
+  goals: [
+    { name: 'First', amount: '5000', by: '2027-08' },
+    { name: 'Second', amount: '8000', by: '2027-08' },
+  ],
+}, oct)
+assert.equal(split[0].claim, 500)
+assert.equal(split[0].reaches, true)
+assert.equal(split[0].freeAfter, 500)
+assert.equal(split[1].claim, 500)
+assert.equal(split[1].could, 5000)
+assert.equal(split[1].reaches, false)
+assert.notEqual(split[1].pct, 100)
+assert.equal(split[1].freeAfter, 0)
 
 const source = [
   'src/logic.js', 'src/store.js', 'src/main.js', 'src/screens.js', 'public/sw.js',

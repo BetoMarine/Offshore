@@ -1,10 +1,12 @@
 import {
   billsParts,
+  catchUpValue,
   debtMonthly,
   freqWord,
   hk,
   interestMonth,
   longDate,
+  money,
   monthLong,
   monthName,
   monthShort,
@@ -13,11 +15,11 @@ import {
   planFigures,
   projectFund,
   projectGoal,
+  roundCents,
   scoreOf,
   SCORE_MAX,
   shortDate,
   soonestDue,
-  catchUpValue,
 } from './logic.js'
 import { LESSONS, lessonById } from './lessons.js'
 
@@ -52,7 +54,14 @@ function quiet(label, act) {
 
 function moneyField(field, value, label = 'Amount') {
   const filled = value !== '' && value != null ? ' filled' : ''
-  return `<label class="field${filled}"><span class="cur">HK$</span><input aria-label="${label}" data-field="${field}" data-kind="money" inputmode="numeric" autocomplete="off" value="${esc(value)}"></label>`
+  return `<label class="field${filled}"><span class="cur">HK$</span><input aria-label="${label}" data-field="${field}" data-kind="money" inputmode="decimal" autocomplete="off" value="${esc(value)}"></label><p class="hint warn" data-cap hidden>That number is too big.</p>`
+}
+
+function emptyDraft() {
+  return {
+    name: '', left: '', interest: '', interestPeriod: 'month', interestUnknown: false,
+    due: '', freq: 'monthly', nextDate: '', overdue: null, overdueAmount: '', overdueSince: '',
+  }
 }
 
 function textField(field, value, label) {
@@ -124,14 +133,23 @@ function lenderCards(state) {
       ? `<div class="od">Overdue ${hk(lender.overdueAmount)} since ${esc(shortDate(lender.overdueSince))}</div>`
       : '<div class="k">Nothing overdue</div>'
     const interest = interestText(lender)
-    return `<button type="button" class="owe" data-act="edit-lender" data-index="${index}"><div class="h">${esc(lender.name)}<span aria-hidden="true">›</span></div><div class="k">Left <b>${hk(lender.left)}</b></div><div class="k">${due}</div>${interest ? `<div class="k">${esc(interest)}</div>` : ''}${overdue}</button>`
+    const yes = lender.paidOnTime === true ? ' on' : ''
+    const no = lender.paidOnTime === false ? ' on' : ''
+    return `<div class="owe"><div class="h">${esc(lender.name)}</div><div class="k">Left <b>${hk(lender.left)}</b></div><div class="k">${due}</div>${interest ? `<div class="k">${esc(interest)}</div>` : ''}${overdue}
+      <div class="seg" role="radiogroup" aria-label="This month for ${esc(lender.name)}">
+        <button type="button" class="${yes}" data-act="paid" data-index="${index}" data-value="yes" role="radio" aria-checked="${lender.paidOnTime === true}">Paid on time</button>
+        <button type="button" class="${no}" data-act="paid" data-index="${index}" data-value="no" role="radio" aria-checked="${lender.paidOnTime === false}">Not this time</button>
+      </div>
+      <div class="row-actions">
+        <button type="button" data-act="edit-lender" data-index="${index}">Edit</button>
+        <button type="button" data-act="remove-lender" data-index="${index}">Remove</button>
+      </div>
+    </div>`
   }).join('')
 }
 
 export function view(state, route) {
-  if (route.screen === 'blank') {
-    return '<button type="button" class="btn quiet blank-home" data-act="home">Back to start</button>'
-  }
+  if (route.screen === 'blank') return pages.o00(state)
   const page = pages[route.screen]
   if (!page) return shell({ body: '<h1>Offshore</h1>', actions: quiet('Back to start', 'home') })
   return page(state, route)
@@ -193,20 +211,23 @@ const pages = {
     })
   },
   o02c(state) {
+    const draft = state.draft || emptyDraft()
     return shell({
       stepper: 'Step 2 of 6',
-      body: `<p class="eyebrow">${esc(state.draft.name)}</p><h1>How much is left to pay?</h1>
-        ${moneyField('draft.left', state.draft.left)}`,
+      body: `<p class="eyebrow">${esc(draft.name)}</p><h1>How much is left to pay?</h1>
+        ${moneyField('draft.left', draft.left)}`,
       actions: primary('Next', 'next'),
     })
   },
   o02d(state) {
-    const period = state.draft.interestPeriod || 'month'
+    const draft = state.draft || emptyDraft()
+    const period = draft.interestPeriod || 'month'
     return shell({
       stepper: 'Step 2 of 6',
-      body: `<p class="eyebrow">${esc(state.draft.name)}</p><h1>How much interest do you pay?</h1>
+      body: `<p class="eyebrow">${esc(draft.name)}</p><h1>How much interest do you pay?</h1>
         <p class="body">Check your papers or app.</p>
-        <label class="field${state.draft.interest !== '' ? ' filled' : ''}"><input aria-label="Interest" data-field="draft.interest" data-kind="decimal" inputmode="decimal" autocomplete="off" value="${esc(state.draft.interest)}"><span class="cur">%</span></label>
+        <label class="field${draft.interest !== '' ? ' filled' : ''}"><input aria-label="Interest" data-field="draft.interest" data-kind="decimal" inputmode="decimal" autocomplete="off" value="${esc(draft.interest)}"><span class="cur">%</span></label>
+        <p class="hint warn" data-cap hidden>That number is too big.</p>
         <div class="seg" role="radiogroup" aria-label="Interest per">
           <button type="button" class="${period === 'month' ? 'on' : ''}" data-act="iperiod" data-value="month" role="radio" aria-checked="${period === 'month'}">a month</button>
           <button type="button" class="${period === 'year' ? 'on' : ''}" data-act="iperiod" data-value="year" role="radio" aria-checked="${period === 'year'}">a year</button>
@@ -215,12 +236,13 @@ const pages = {
     })
   },
   o02e(state) {
-    const freq = state.draft.freq || 'monthly'
+    const draft = state.draft || emptyDraft()
+    const freq = draft.freq || 'monthly'
     const option = (value, label) => `<button type="button" class="r${freq === value ? ' on' : ''}" data-act="freq" data-value="${value}" role="radio" aria-checked="${freq === value}"><i></i>${label}</button>`
     return shell({
       stepper: 'Step 2 of 6',
-      body: `<p class="eyebrow">${esc(state.draft.name)}</p><h1>How much is due each time?</h1>
-        ${moneyField('draft.due', state.draft.due)}
+      body: `<p class="eyebrow">${esc(draft.name)}</p><h1>How much is due each time?</h1>
+        ${moneyField('draft.due', draft.due)}
         <p class="flabel">How often?</p>
         <div class="radios" role="radiogroup" aria-label="How often">
           ${option('monthly', 'Monthly')}
@@ -231,18 +253,20 @@ const pages = {
     })
   },
   o02f(state) {
+    const draft = state.draft || emptyDraft()
     return shell({
       stepper: 'Step 2 of 6',
-      body: `<p class="eyebrow">${esc(state.draft.name)}</p><h1>When is the next payment due?</h1>
-        <label class="field date${state.draft.nextDate ? ' filled' : ''}"><input type="date" aria-label="Next date" data-field="draft.nextDate" data-kind="date" value="${esc(state.draft.nextDate)}"></label>
-        <p class="hint" data-echo="date" data-empty="Pick a date.">${state.draft.nextDate ? esc(longDate(state.draft.nextDate)) : 'Pick a date.'}</p>`,
+      body: `<p class="eyebrow">${esc(draft.name)}</p><h1>When is the next payment due?</h1>
+        <label class="field date${draft.nextDate ? ' filled' : ''}"><input type="date" aria-label="Next date" data-field="draft.nextDate" data-kind="date" value="${esc(draft.nextDate)}"></label>
+        <p class="hint" data-echo="date" data-empty="Pick a date.">${draft.nextDate ? esc(longDate(draft.nextDate)) : 'Pick a date.'}</p>`,
       actions: primary('Next', 'next'),
     })
   },
   o02g(state) {
+    const draft = state.draft || emptyDraft()
     return shell({
       stepper: 'Step 2 of 6',
-      body: `<p class="eyebrow">${esc(state.draft.name)}</p><h1>Is any of it overdue?</h1>
+      body: `<p class="eyebrow">${esc(draft.name)}</p><h1>Is any of it overdue?</h1>
         <p class="body">Overdue means a due date has passed.</p>
         <div class="doors">
           <button type="button" class="door choice" data-act="overdue-yes"><span class="t">Yes</span></button>
@@ -251,20 +275,31 @@ const pages = {
     })
   },
   o02g2(state) {
+    const draft = state.draft || emptyDraft()
     return shell({
       stepper: 'Step 2 of 6',
-      body: `<p class="eyebrow">${esc(state.draft.name)}</p><h1>How much is overdue?</h1>
-        ${moneyField('draft.overdueAmount', state.draft.overdueAmount)}`,
+      body: `<p class="eyebrow">${esc(draft.name)}</p><h1>How much is overdue?</h1>
+        ${moneyField('draft.overdueAmount', draft.overdueAmount)}`,
       actions: primary('Next', 'next'),
     })
   },
   o02g3(state) {
+    const draft = state.draft || emptyDraft()
     return shell({
       stepper: 'Step 2 of 6',
-      body: `<p class="eyebrow">${esc(state.draft.name)}</p><h1>Since when?</h1>
-        <label class="field date${state.draft.overdueSince ? ' filled' : ''}"><input type="date" aria-label="Overdue since" data-field="draft.overdueSince" data-kind="date" value="${esc(state.draft.overdueSince)}"></label>
-        <p class="hint" data-echo="date" data-empty="Pick the date it was due.">${state.draft.overdueSince ? esc(longDate(state.draft.overdueSince)) : 'Pick the date it was due.'}</p>`,
+      body: `<p class="eyebrow">${esc(draft.name)}</p><h1>Since when?</h1>
+        <label class="field date${draft.overdueSince ? ' filled' : ''}"><input type="date" aria-label="Overdue since" data-field="draft.overdueSince" data-kind="date" value="${esc(draft.overdueSince)}"></label>
+        <p class="hint" data-echo="date" data-empty="Pick the date it was due.">${draft.overdueSince ? esc(longDate(draft.overdueSince)) : 'Pick the date it was due.'}</p>`,
       actions: primary('Next', 'next'),
+    })
+  },
+  o02r(state, route) {
+    const lender = state.lenders[route.index]
+    const name = lender?.name || 'this'
+    return shell({
+      stepper: 'What you owe',
+      body: `<h1>Remove this?</h1><p class="body">This takes ${esc(name)} off your list.</p>`,
+      actions: `${primary('Remove', 'remove-yes')}${quiet('Keep it', 'keep')}`,
     })
   },
   o02h(state) {
@@ -275,7 +310,7 @@ const pages = {
     })
   },
   o03(state) {
-    const total = state.lenders.reduce((sum, lender) => sum + Math.round(Number(lender.left) || 0), 0)
+    const total = roundCents(state.lenders.reduce((sum, lender) => sum + money(lender.left), 0))
     const rows = state.lenders.map((lender) => `<div class="row"><span class="k">${esc(lender.name)}</span><span class="v">${hk(lender.left)}</span></div>`).join('')
     return shell({
       stepper: 'Step 2 of 6',
@@ -319,7 +354,7 @@ const pages = {
     const debt = showDebt ? `<p class="flabel">Catch up</p>
         ${moneyField('catchUp', catchUpValue(state), 'Catch up')}
         <p class="hint">Overdue money. You can change this.</p>
-        <div class="readback"><b data-live="bills-total">Bills part: ${hk(bills.total)}</b><span data-live="bills-includes">Includes ${hk(bills.debt)} for what you owe</span></div>` : ''
+        <div class="readback"><b data-live="bills-total">Bills part: ${hk(bills.total)}</b><span data-live="bills-includes">Includes ${hk(bills.owe)} for what you owe</span></div>` : ''
     return shell({
       stepper: 'Step 5 of 6',
       body: `<p class="eyebrow">Money out · Part 2 of 3</p><h1>How much for your other bills each month?</h1>
@@ -369,6 +404,18 @@ const pages = {
       actions: `${primary('Change a part', 'change-part')}${quiet('Keep it for now', 'plan-yes')}`,
     })
   },
+  parts() {
+    return shell({
+      stepper: 'Your plan',
+      body: `<h1>Which part do you want to change?</h1>
+        <div class="doors">
+          <button type="button" class="door" data-act="part" data-part="pay"><span class="t">Pay</span><span class="s">What you get each month</span></button>
+          <button type="button" class="door" data-act="part" data-part="home"><span class="t">Home</span><span class="s">What you send home</span></button>
+          <button type="button" class="door" data-act="part" data-part="bills"><span class="t">Bills</span><span class="s">Bills and what you owe</span></button>
+          <button type="button" class="door" data-act="part" data-part="you"><span class="t">You</span><span class="s">What you keep for yourself</span></button>
+        </div>`,
+    })
+  },
   o11(state) {
     const fig = planFigures(state)
     const soon = soonestDue(state.lenders)
@@ -384,7 +431,9 @@ const pages = {
         <button type="button" class="lifecard" data-act="today"><div class="h">Today<span>${esc(monthName(new Date()))}</span></div><div class="k">Left this month</div><div class="v" data-left="${fig.left}">${hk(fig.left)}</div><div class="k">In ${hk(fig.pay)} · Out ${hk(fig.out)}</div></button>
         <button type="button" class="lifecard" data-act="owe" style="margin-top:12px">${oweBody}</button>
         <div style="height:12px"></div>
-        <button type="button" class="score" data-act="score">${ring(score.total)}<div><div class="lbl">Your score</div><div class="why">${esc(lastLine(state, false))}</div></div></button>`,
+        <button type="button" class="score" data-act="score">${ring(score.total)}<div><div class="lbl">Your score</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
+        <p class="flabel">How much of your part did you keep?</p>
+        ${moneyField('checks.keptAmount', state.checks?.keptAmount || '', 'Kept')}`,
       actions: `${primary('Go to lessons', 'lessons')}${quiet('See your life', 'life')}`,
     })
   },
@@ -481,7 +530,15 @@ const pages = {
   o26(state) {
     const fund = projectFund(state.fund, new Date())
     const width = fund.amount ? Math.min(100, Math.round((fund.nowSaved / fund.amount) * 100)) : 0
-    const line = `${fund.months} months × ${hk(fund.monthly)} = ${hk(fund.could)}.${fund.reaches ? ' On track for your date.' : ''}`
+    const math = `${fund.months} months × ${hk(fund.monthly)} = ${hk(fund.could)}.`
+    const line = fund.reaches
+      ? `${math} On track for your date.`
+      : fund.monthly > 0
+        ? math
+        : 'This does not grow yet.'
+    const reach = !fund.reaches && fund.reach
+      ? `<p class="hint">You reach this in ${esc(monthShort(fund.reach))}.</p>`
+      : ''
     return shell({
       stepper: 'Emergencies',
       body: `<h1>Money for emergencies</h1>
@@ -490,7 +547,8 @@ const pages = {
           <div class="bar" aria-hidden="true"><i style="width:${width}%"></i></div>
           <div class="k">Now ${hk(0)} · ${hk(fund.monthly)} each month</div>
         </div>
-        <p class="hint">${esc(line)}</p>`,
+        <p class="hint">${esc(line)}</p>
+        ${reach}`,
       actions: `${primary('Done', 'life')}${quiet('Change it', 'fund-edit')}`,
     })
   },
@@ -523,6 +581,11 @@ const pages = {
     const goal = state.goals[route.goalIndex] || state.goals[state.goals.length - 1]
     const proj = projectGoal(state, goal, new Date())
     const when = monthShort(goal.by)
+    const reach = proj.reaches
+      ? ''
+      : proj.reach
+        ? `<p class="hint">You reach this in ${esc(monthShort(proj.reach))}.</p>`
+        : '<p class="hint">This does not grow yet.</p>'
     return shell({
       stepper: 'Goal',
       body: `<h1>${esc(goal.name)}</h1>
@@ -532,6 +595,8 @@ const pages = {
           <div class="k">Dashed line: your ${hk(proj.amount)}</div>
           <div class="cover">${doughnut(proj.pct)}<div class="c"><b>${proj.pct}% by ${esc(when)}</b>You could have ${hk(proj.could)} of ${hk(proj.amount)}.</div></div>
         </div>
+        <p class="hint">${hk(proj.freeAfter)} a month still free.</p>
+        ${reach}
         <p class="hint">Your emergency money is not counted here.</p>`,
       actions: `${primary('Done', 'life')}${quiet('Add another goal', 'goal-add')}`,
     })
@@ -552,6 +617,8 @@ const pages = {
           ${row('Kept your own part', score.kept, SCORE_MAX.kept)}
           ${row('Lessons finished', score.lessons, SCORE_MAX.lessons)}
         </ul>
+        <p class="flabel">How much of your part did you keep?</p>
+        ${moneyField('checks.keptAmount', state.checks?.keptAmount || '', 'Kept')}
         <div class="private">${LOCK}<span>Only you can see this. It stays on this phone.</span></div>`,
       actions: primary('Back to your month', 'month'),
     })
@@ -572,13 +639,18 @@ const pages = {
       return `<div class="oweline"><span>${esc(lender.name)} · next ${esc(shortDate(lender.nextDate))}</span>${lender.overdue ? `<span class="od">Overdue ${hk(lender.overdueAmount)}</span>` : ''}</div>${interest ? `<div class="k">${esc(interest)}</div>` : ''}`
     }).join('')
     const owe = `<button type="button" class="lifecard" data-act="owe"><div class="h">What you owe</div>${oweLines || '<div class="k">Do you owe anyone money?</div>'}</button>`
+    const fundProj = state.fund ? projectFund(state.fund, new Date()) : null
+    const fundReach = fundProj && !fundProj.reaches && fundProj.reach
+      ? `<div class="k">You reach this in ${esc(monthShort(fundProj.reach))}.</div>`
+      : ''
     const fund = state.fund
-      ? `<button type="button" class="lifecard" data-act="fund"><div class="h">Emergencies<span>${hk(0)} of ${hk(state.fund.amount)}</span></div><div class="bar" aria-hidden="true"><i style="width:0%"></i></div></button>`
+      ? `<button type="button" class="lifecard" data-act="fund"><div class="h">Emergencies<span>${hk(0)} of ${hk(state.fund.amount)}</span></div><div class="bar" aria-hidden="true"><i style="width:0%"></i></div>${fundReach}</button>`
       : `<button type="button" class="lifecard" data-act="fund"><div class="h">Emergencies</div><div class="k">How much do you want for emergencies?</div></button>`
     const goals = state.goals.length
       ? state.goals.map((goal, index) => {
         const proj = projectGoal(state, goal, new Date())
-        return `<button type="button" class="lifecard" data-act="goal" data-index="${index}"><div class="h">${esc(goal.name)}<span>by ${esc(monthShort(goal.by))}</span></div><div class="cover" style="margin-top:4px">${doughnut(proj.pct)}<div class="c"><b style="font-size:20px">${proj.pct}%</b>covered by your date</div></div></button>`
+        const reach = proj.reaches || !proj.reach ? '' : `<div class="k">You reach this in ${esc(monthShort(proj.reach))}.</div>`
+        return `<button type="button" class="lifecard" data-act="goal" data-index="${index}"><div class="h">${esc(goal.name)}<span>by ${esc(monthShort(goal.by))}</span></div><div class="cover" style="margin-top:4px">${doughnut(proj.pct)}<div class="c"><b style="font-size:20px">${proj.pct}%</b>covered by your date</div></div>${reach}<div class="k">${hk(proj.freeAfter)} a month still free.</div></button>`
       }).join('')
       : '<button type="button" class="lifecard" data-act="goal-new"><div class="h">What is your goal?</div></button>'
     return shell({

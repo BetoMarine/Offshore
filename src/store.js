@@ -1,4 +1,4 @@
-import { currentMonthKey, noteOverdue, offshoreKey } from './logic.js'
+import { currentMonthKey, noteOverdue, offshoreKey, overdueTotal } from './logic.js'
 
 export const DATA_KEY = 'offshore-data'
 
@@ -19,6 +19,8 @@ export function freshState() {
     fundDraft: { amount: '', by: '', monthly: '' },
     goals: [],
     goalDraft: { name: '', amount: '', by: '', index: -1 },
+    afterSetup: null,
+    returnTo: null,
     checks: freshChecks(),
   }
 }
@@ -29,6 +31,7 @@ function freshChecks(month = currentMonthKey()) {
     paidOnTime: false,
     sentWhatSheChose: false,
     keptHerPart: false,
+    keptAmount: '',
     lessonsDid: {},
     overdueBaseline: null,
     lastUp: '',
@@ -49,6 +52,7 @@ export function blankDraft() {
     overdue: null,
     overdueAmount: '',
     overdueSince: '',
+    paidOnTime: null,
   }
 }
 
@@ -65,14 +69,19 @@ export function draftFromLender(lender) {
     overdue: lender.overdue ? true : false,
     overdueAmount: lender.overdue ? String(lender.overdueAmount ?? '') : '',
     overdueSince: lender.overdue ? lender.overdueSince || '' : '',
+    paidOnTime: lender.paidOnTime === true ? true : lender.paidOnTime === false ? false : null,
   }
 }
 
 function rollMonth(state) {
   const month = currentMonthKey()
   if (!state.checks || state.checks.month !== month) {
+    const baseline = overdueTotal(state.lenders)
     state.checks = freshChecks(month)
+    state.checks.overdueBaseline = baseline
+    for (const lender of state.lenders || []) lender.paidOnTime = null
   }
+  if (state.checks.keptAmount == null) state.checks.keptAmount = ''
   if (!state.checks.lessonsDid) state.checks.lessonsDid = {}
   if (!state.fundDraft) state.fundDraft = { amount: '', by: '', monthly: '' }
   if (!state.goalDraft) state.goalDraft = { name: '', amount: '', by: '', index: -1 }
@@ -93,6 +102,8 @@ export function loadState() {
     state.goalDraft = parsed.goalDraft || { name: '', amount: '', by: '', index: -1 }
     if (!Array.isArray(state.lenders)) state.lenders = []
     if (!Array.isArray(state.goals)) state.goals = []
+    state.afterSetup = null
+    state.returnTo = null
     return rollMonth(state)
   } catch {
     return freshState()

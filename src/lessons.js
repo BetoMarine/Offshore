@@ -6,9 +6,9 @@ export const LESSONS = [
     app: 'AlipayHK',
     group: 'ahk',
     stepper: 'Pay a bill',
-    pointsReason: 'you paid a bill on time.',
+    pointsReason: 'you finished a lesson.',
     didPrompt: 'Did you pay your bill?',
-    sets: 'paidOnTime',
+    sets: null,
     steps: [
       {
         frame: 'o13',
@@ -64,9 +64,9 @@ export const LESSONS = [
     group: 'ahk',
     stepper: 'Save',
     unverified: true,
-    pointsReason: 'you kept your own part.',
+    pointsReason: 'you finished a lesson.',
     didPrompt: 'Did you keep your part?',
-    sets: 'keptHerPart',
+    sets: null,
     steps: [
       {
         frame: 'o19',
@@ -99,9 +99,9 @@ export const LESSONS = [
     app: 'GCash',
     group: 'gcash',
     stepper: 'GCash',
-    pointsReason: 'you paid a bill on time.',
+    pointsReason: 'you finished a lesson.',
     didPrompt: 'Did you pay your bill?',
-    sets: 'paidOnTime',
+    sets: null,
     steps: [
       {
         frame: 'o22a',
@@ -117,9 +117,9 @@ export const LESSONS = [
     app: 'GCash',
     group: 'gcash',
     stepper: 'GCash',
-    pointsReason: 'you kept your own part.',
+    pointsReason: 'you finished a lesson.',
     didPrompt: 'Did you keep your part?',
-    sets: 'keptHerPart',
+    sets: null,
     steps: [
       {
         frame: 'o22b',

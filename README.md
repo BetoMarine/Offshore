@@ -4,11 +4,11 @@ A phone web app for Hong Kong domestic helpers. She is the CEO of her own life. 
 
 This repository is a **preview**, not a live product.
 
-Preview path (once GitHub Pages is on, source `gh-pages`, folder `/`):
+GitHub Pages is on. The latest preview is:
 
-`https://betomarine.github.io/Offshore/preview/first/`
+`https://betomarine.github.io/Offshore/preview/second/`
 
-`.github/workflows/preview.yml` publishes `dist` into `preview/first` and keeps older preview folders.
+The first preview stays at `preview/first/`. `.github/workflows/preview.yml` publishes `dist` into `preview/second` and keeps older preview folders.
 
 ```bash
 npm install
