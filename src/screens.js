@@ -149,6 +149,7 @@ function lenderCards(state) {
         <button type="button" data-act="edit-lender" data-index="${index}">Edit</button>
         <button type="button" data-act="remove-lender" data-index="${index}">Remove</button>
       </div>
+      <button type="button" class="papers" data-act="papers-pick" data-index="${index}">Check a loan’s papers</button>
     </div>`
   }).join('')
 }
@@ -166,6 +167,10 @@ function homeSplitHtml(state) {
   }
   const split = homeSplit(state.home, state.sendHome.app)
   return `<span class="split">On the app ${hk(split.app)} · Cash only ${hk(split.cash)}</span>`
+}
+
+function papersQuiet(state) {
+  return state.lenders?.length ? quiet('Check a loan’s papers', 'papers') : ''
 }
 
 function lateLenders(state) {
@@ -241,7 +246,7 @@ const pages = {
       body: `<div class="wordmark">${MARK}<span>Offshore</span></div>
         <h1>Your money.<br>Your plan.</h1>
         <p class="body">You decide every number. We show you how to do each step yourself.</p>
-        <div class="private">${LOCK}<span>Everything stays on this phone. You can erase it any time.</span></div>
+        <div class="private">${LOCK}<span>The plan stays on this phone. Your progress can be saved.</span></div>
         <p class="fine" style="margin-top:14px">This helps you plan. It is not financial advice.</p>`,
       actions: `${primary('Start', 'start')}${quiet('Erase my data', 'erase')}`,
     })
@@ -469,7 +474,7 @@ const pages = {
         ${catchUpLine(state)}
         <p class="hint">${esc(hint)}</p>
         ${fixDoorHtml(state)}</div>`,
-      actions: `${primary('This is my plan', 'plan-yes')}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${late ? quiet('Check a loan’s papers', 'papers') : ''}`,
+      actions: `${primary('This is my plan', 'plan-yes')}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${papersQuiet(state)}`,
     })
   },
   o10(state) {
@@ -481,8 +486,8 @@ const pages = {
       : 'Nothing is late.'
     const afterCut = !!state.fix?.lastCutAmount
     const actions = afterCut
-      ? `${primary('Done', 'plan-yes')}${quiet('Cut again', 'fix-fit')}${quiet('Change a part', 'change-part')}`
-      : `${quiet('Keep for now', 'plan-yes')}${quiet('Check a loan’s papers', 'papers')}${quiet('Change a part', 'change-part')}`
+      ? `${primary('Done', 'plan-yes')}${quiet('Cut again', 'fix-fit')}${quiet('Change a part', 'change-part')}${papersQuiet(state)}`
+      : `${quiet('Keep for now', 'plan-yes')}${papersQuiet(state)}${quiet('Change a part', 'change-part')}`
     return shell({
       stepper: afterCut ? 'Your plan' : 'Fix',
       body: `<h1>${afterCut ? 'Your plan for this month' : 'What you can do'}</h1>
@@ -531,7 +536,7 @@ const pages = {
         <button type="button" class="score" data-act="score">${ring(score.total)}<div><div class="lbl">Your score</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
         <p class="flabel">How much of your part did you keep?</p>
         ${moneyField('checks.keptAmount', state.checks?.keptAmount || '', 'Kept')}`,
-      actions: `${primary('Go to lessons', 'lessons')}${quiet('See your life', 'life')}`,
+      actions: `${primary('Go to lessons', 'lessons')}${quiet('See your life', 'life')}${papersQuiet(state)}`,
     })
   },
   o12(state) {
@@ -785,7 +790,7 @@ const pages = {
           ${fund}
           ${goals}
         </div>`,
-      actions: quiet('Erase my data', 'erase'),
+      actions: `${papersQuiet(state)}${quiet('Erase my data', 'erase')}`,
     })
   },
   f01(state) {
@@ -884,8 +889,8 @@ const pages = {
       : '<span class="v">Nothing late</span>'
     const action = state.fix?.lastAction || 'You have not picked one yet.'
     return shell({
-      stepper: 'Day off',
-      body: `<h1>For your day off</h1>
+      stepper: 'Sunday Pack',
+      body: `<p class="eyebrow">Sunday Pack</p><h1>For your day off</h1>
         <div class="week">${dueRows}<div class="row"><span>Late</span><span class="v">${late}</span></div></div>
         <div class="actionpick"><b>Your action</b>${esc(action)}</div>
         <div class="saved">${LOCK}<span>Saved on this phone. Pick it up on your next day off.</span></div>`,

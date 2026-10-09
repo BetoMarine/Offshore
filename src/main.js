@@ -21,7 +21,6 @@ import {
   monthLong,
   noteOverdue,
   overdueTotal,
-  passedDueIsLate,
   planFigures,
   reduceDue,
   roundCents,
@@ -408,13 +407,7 @@ function next() {
     case 'o02c': return go('o02d')
     case 'o02d': return go('o02e')
     case 'o02e': return go('o02f')
-    case 'o02f':
-      if (passedDueIsLate(state.draft.nextDate)) {
-        state.draft.overdue = true
-        if (!state.draft.overdueSince) state.draft.overdueSince = state.draft.nextDate
-        return go('o02g2')
-      }
-      return go('o02g')
+    case 'o02f': return go('o02g')
     case 'f02': return saveCut()
     case 'f05': return saveCatch()
     case 'f06d': return saveMark()

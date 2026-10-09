@@ -1,9 +1,9 @@
 {
   "name": "Offshore",
   "short_name": "Offshore",
-  "id": "/Offshore/preview/third/",
-  "start_url": "/Offshore/preview/third/",
-  "scope": "/Offshore/preview/third/",
+  "id": "/Offshore/preview/fourth/",
+  "start_url": "/Offshore/preview/fourth/",
+  "scope": "/Offshore/preview/fourth/",
   "display": "standalone",
   "background_color": "#FBF5EC",
   "theme_color": "#A63D1F",

@@ -114,6 +114,16 @@ button.lifecard, button.owe, button.score {
 .hint.warn { color: #7A2E14; font-weight: 700; }
 .hint.warn[hidden] { display: none; }
 .row-actions { display: flex; gap: 8px; margin-top: 12px; }
+.owe button.papers {
+  width: 100%;
+  margin-top: 8px;
+  min-height: 48px;
+  border-radius: 14px;
+  border: 2px solid var(--os-edge);
+  background: #fff;
+  font: 700 17px var(--os-font);
+  cursor: pointer;
+}
 .row-actions button {
   flex: 1;
   min-height: 48px;

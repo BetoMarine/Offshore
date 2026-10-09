@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/third'
+const prefix = '/Offshore/preview/fourth'
 const shots = '/opt/cursor/artifacts'
 const required = [
   'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
@@ -142,6 +142,9 @@ try {
   await page.goto(`http://127.0.0.1:${port}${prefix}/`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('h1')
   await mark()
+  if (!(await bodyText()).includes('The plan stays on this phone. Your progress can be saved.')) {
+    throw new Error('privacy line does not match the locked strip')
+  }
   await shot('start.png')
 
   await clickText('Erase my data')
@@ -173,8 +176,8 @@ try {
   if (await page.$eval('[data-act="next"]', (el) => el.disabled)) throw new Error('past due blocked Next')
   if (!(await bodyText()).includes('That date has passed. This payment is late.')) throw new Error('past date hint missing')
   await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o02g2') {
-    throw new Error('a passed due did not open the late amount')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o02g') {
+    throw new Error('a passed due skipped yes or no')
   }
   await clickSel('[data-act="back"]')
   await fill('Next date', '2026-10-25')
@@ -607,6 +610,9 @@ try {
   }
   await clickText('Keep for now')
   text = await bodyText()
+  if (!text.includes('Sunday Pack') || !text.includes('For your day off')) {
+    throw new Error(`sunday pack label missing:\n${text}`)
+  }
   if (!text.includes('Saved on this phone. Pick it up on your next day off.')) {
     throw new Error(`day off line missing:\n${text}`)
   }
@@ -681,6 +687,15 @@ try {
   if (!text.includes('late is cleared') || !text.includes('Includes HK$300') || text.includes('still late')) {
     throw new Error(`full mark:\n${text}`)
   }
+  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers left the plan after late was cleared')
+  if (await page.$('[data-act="fix-catch"]')) throw new Error('catch up stayed after late was cleared')
+  if (!(await page.$('[data-act="fix-fit"]'))) throw new Error('make this month fit hid while the month was still short')
+  await clickSel('[data-act="papers"]')
+  {
+    const opened = await page.$eval('#app', (el) => el.dataset.screen)
+    if (opened !== 'papers' && opened !== 'papers-who') throw new Error('papers did not open after late was cleared')
+  }
+  await clickSel('[data-act="back"]')
   await clickText('On the app or cash only')
   await fill('Pay on the app', '9000')
   await clickText('Continue')
@@ -694,6 +709,30 @@ try {
   await clickText('Continue')
   text = await bodyText()
   if (!text.includes('On the app') || !text.includes('Cash only')) throw new Error(`home split missing:\n${text}`)
+  await clickText('Change a part')
+  await clickSel('[data-part="home"]')
+  await fill('Amount', '100')
+  await clickText('Next')
+  text = await bodyText()
+  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers left a plan that fits')
+  if (await page.$('[data-act="fix-fit"], [data-act="fix-catch"], [data-act="fix-fund"]')) {
+    throw new Error('loud fix doors stayed after the month fit and nothing was late')
+  }
+  await clickText('This is my plan')
+  text = await bodyText()
+  if (!text.includes('Sunday Pack') || !text.includes('For your day off')) throw new Error(`sunday pack missing:\n${text}`)
+  await clickText('Done')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') throw new Error('day off did not return to the month')
+  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers missing on the month')
+  await clickText('See your life')
+  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers missing on your life')
+  await clickSel('[data-act="back"]')
+  await clickSel('[data-act="owe"]')
+  if (!(await page.$('[data-act="papers-pick"]'))) throw new Error('papers missing on who you owe')
+  await clickSel('[data-act="papers-pick"][data-index="0"]')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'papers') {
+    throw new Error('the lender row did not open that loan’s papers')
+  }
   await clickSel('[data-act="exit"]')
   if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') {
     throw new Error('exit after fix did not open the first page')
