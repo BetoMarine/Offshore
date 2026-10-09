@@ -142,6 +142,20 @@ export function planFigures(state) {
   return { pay, home, you, bills, out, left: pay - out, over: out > pay + 0.001 }
 }
 
+/** Blank is not zero. She has a plan only after she types Home, other bills, and You. */
+export function planPartsEntered(state) {
+  return !!state && state.home !== '' && state.otherBills !== '' && state.you !== ''
+}
+
+/**
+ * Leftover only from a plan she entered.
+ * Loan dues and overdue are not spend, and must not become a leftover on their own.
+ */
+export function planLeft(state) {
+  if (!planPartsEntered(state)) return null
+  return planFigures(state).left
+}
+
 /** Months from the current month up to, but not including, the target month. */
 export function monthsUntil(from, ym) {
   if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return 0

@@ -17,6 +17,8 @@ import {
   dueThisWeek,
   homeSplit,
   planFigures,
+  planLeft,
+  planPartsEntered,
   projectFund,
   projectGoal,
   reduceDue,
@@ -171,6 +173,39 @@ function homeSplitHtml(state) {
 
 function papersQuiet(state) {
   return state.lenders?.length ? quiet('Check a loan’s papers', 'papers') : ''
+}
+
+function enteredFact(state) {
+  const bits = []
+  if (state.pay !== '') bits.push(`Pay ${hk(state.pay)}`)
+  if (state.lenders?.length) {
+    const left = roundCents(state.lenders.reduce((sum, lender) => sum + money(lender.left), 0))
+    bits.push(`Loan left ${hk(left)}`)
+  }
+  const overdue = lateLenders(state).length
+  if (overdue) bits.push(`${overdue} overdue`)
+  if ((state.lenders || []).some((lender) => lender.interestUnknown)) bits.push('Interest not known')
+  if (!bits.length) return ''
+  return `<div class="fact"><b>You entered</b>${bits.join(' · ')}</div>`
+}
+
+function packAction(state) {
+  const action = state.fix?.lastAction || ''
+  if (!lateLenders(state).length && /catch up/i.test(action)) return 'You have not picked one yet.'
+  return action || 'You have not picked one yet.'
+}
+
+function packWeek(state) {
+  const dues = dueThisWeek(state.lenders)
+  const dueRows = dues.length
+    ? dues.map((lender) => `<div class="row"><span>Due this week</span><span class="v">${esc(lender.name)} · ${esc(shortDate(lender.nextDate))} · ${hk(lender.due)}</span></div>`).join('')
+    : '<div class="row"><span>Due this week</span><span class="v">Nothing due this week</span></div>'
+  const lates = lateLenders(state)
+  const late = lates.length
+    ? lates.map((lender) => `<button type="button" class="chip amber" data-act="mark-paid" data-index="${state.lenders.indexOf(lender)}">${esc(lender.name)} ${hk(lender.overdueAmount)}</button>`).join('')
+    : '<span class="v">Nothing late</span>'
+  return `<div class="week">${dueRows}<div class="row"><span>Late</span><span class="v">${late}</span></div></div>
+    <div class="actionpick"><b>Your action</b>${esc(packAction(state))}</div>`
 }
 
 function lateLenders(state) {
@@ -410,17 +445,18 @@ const pages = {
       actions: `${primary('Next', 'to-plan')}${quiet('Change', 'to-summary')}`,
     })
   },
-  o05() {
+  o05(state) {
     return shell({
-      stepper: 'Step 3 of 6',
+      stepper: 'Your plan',
       body: `<h1>Your pay, your plan</h1>
-        <p class="body">Split it into three parts. You set each one.</p>
+        <p class="body">Split what you get into three parts. We only use what you enter.</p>
+        ${enteredFact(state)}
         <div class="parts">
           <div class="part"><div class="num">1</div><div><div class="t">Home</div><div class="s">What you send home</div></div></div>
           <div class="part"><div class="num">2</div><div><div class="t">Bills</div><div class="s">Bills and debt you pay</div></div></div>
           <div class="part"><div class="num">3</div><div><div class="t">You</div><div class="s">What you keep for yourself</div></div></div>
         </div>`,
-      actions: primary('Make my plan', 'to-home'),
+      actions: `${primary('Start my plan', 'to-home')}${quiet('Keep for now', 'back')}`,
     })
   },
   o06(state) {
@@ -459,7 +495,10 @@ const pages = {
   },
   o09(state) {
     const fig = planFigures(state)
-    const hint = cutHint(state) || 'Left is yours to spend. Change any part any time.'
+    const place = planPartsEntered(state) && fig.left > 0 && !fig.over
+    const hint = cutHint(state) || (place
+      ? 'Left is in your plan. Place it when you want · Change any part any time.'
+      : 'Change any part any time.')
     const late = lateLenders(state).length > 0
     return shell({
       stepper: 'Your plan',
@@ -474,7 +513,7 @@ const pages = {
         ${catchUpLine(state)}
         <p class="hint">${esc(hint)}</p>
         ${fixDoorHtml(state)}</div>`,
-      actions: `${primary('This is my plan', 'plan-yes')}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${papersQuiet(state)}`,
+      actions: `${primary(place ? 'This is my plan' : 'Done', 'plan-yes')}${place ? quiet('Place what\u2019s left', 'place-left') : ''}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${papersQuiet(state)}`,
     })
   },
   o10(state) {
@@ -485,9 +524,10 @@ const pages = {
       ? lates.map((lender) => `${esc(lender.name)} is late by ${hk(lender.overdueAmount)}.`).join(' ')
       : 'Nothing is late.'
     const afterCut = !!state.fix?.lastCutAmount
+    const pack = quiet('Sunday Pack', 'sunday-pack')
     const actions = afterCut
-      ? `${primary('Done', 'plan-yes')}${quiet('Cut again', 'fix-fit')}${quiet('Change a part', 'change-part')}${papersQuiet(state)}`
-      : `${quiet('Keep for now', 'plan-yes')}${papersQuiet(state)}${quiet('Change a part', 'change-part')}`
+      ? `${primary('Done', 'plan-yes')}${pack}${quiet('Cut again', 'fix-fit')}${quiet('Change a part', 'change-part')}${papersQuiet(state)}`
+      : `${quiet('Keep for now', 'plan-yes')}${pack}${papersQuiet(state)}${quiet('Change a part', 'change-part')}`
     return shell({
       stepper: afterCut ? 'Your plan' : 'Fix',
       body: `<h1>${afterCut ? 'Your plan for this month' : 'What you can do'}</h1>
@@ -530,13 +570,13 @@ const pages = {
     return shell({
       stepper: 'Your month',
       body: `<h1>Your month</h1>
-        <button type="button" class="lifecard" data-act="today"><div class="h">Today<span>${esc(monthName(new Date()))}</span></div><div class="k">Left this month</div><div class="v" data-left="${fig.left}">${hk(fig.left)}</div><div class="k">In ${hk(fig.pay)} · Out ${hk(fig.out)}</div></button>
+        <button type="button" class="lifecard" data-act="today"><div class="h">Today<span>${esc(monthName(new Date()))}</span></div>${planPartsEntered(state) ? `<div class="k">Left this month</div><div class="v" data-left="${fig.left}">${hk(fig.left)}</div><div class="k">In ${hk(fig.pay)} · Out ${hk(fig.out)}</div>` : '<div class="k">Split your pay to see what is left.</div>'}</button>
         <button type="button" class="lifecard" data-act="owe" style="margin-top:12px">${oweBody}</button>
         <div style="height:12px"></div>
         <button type="button" class="score" data-act="score">${ring(score.total)}<div><div class="lbl">Your score</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
         <p class="flabel">How much of your part did you keep?</p>
         ${moneyField('checks.keptAmount', state.checks?.keptAmount || '', 'Kept')}`,
-      actions: `${primary('Go to lessons', 'lessons')}${quiet('See your life', 'life')}${papersQuiet(state)}`,
+      actions: `${primary('Go to lessons', 'lessons')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('See your life', 'life')}${papersQuiet(state)}`,
     })
   },
   o12(state) {
@@ -785,12 +825,12 @@ const pages = {
       body: `<h1 style="margin-bottom:10px">Your life</h1>
         <button type="button" class="score compact" data-act="score">${ring(score.total)}<div><div class="lbl">Your score</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
         <div class="mini" style="margin-top:10px">
-          <button type="button" class="lifecard" data-act="today"><div class="h">Today<span>Left ${hk(fig.left)}</span></div></button>
+          <button type="button" class="lifecard" data-act="today"><div class="h">Today<span>${planPartsEntered(state) ? `Left ${hk(fig.left)}` : 'Make your plan'}</span></div></button>
           ${owe}
           ${fund}
           ${goals}
         </div>`,
-      actions: `${papersQuiet(state)}${quiet('Erase my data', 'erase')}`,
+      actions: `${quiet('Sunday Pack', 'sunday-pack')}${papersQuiet(state)}${quiet('Erase my data', 'erase')}`,
     })
   },
   f01(state) {
@@ -879,22 +919,67 @@ const pages = {
     })
   },
   f07(state) {
-    const dues = dueThisWeek(state.lenders)
-    const dueRows = dues.length
-      ? dues.map((lender) => `<div class="row"><span>Due this week</span><span class="v">${esc(lender.name)} · ${esc(shortDate(lender.nextDate))} · ${hk(lender.due)}</span></div>`).join('')
-      : '<div class="row"><span>Due this week</span><span class="v">Nothing due this week</span></div>'
-    const lates = lateLenders(state)
-    const late = lates.length
-      ? lates.map((lender, index) => `<button type="button" class="chip amber" data-act="mark-paid" data-index="${state.lenders.indexOf(lender)}">${esc(lender.name)} ${hk(lender.overdueAmount)}</button>`).join('')
-      : '<span class="v">Nothing late</span>'
-    const action = state.fix?.lastAction || 'You have not picked one yet.'
     return shell({
-      stepper: 'Sunday Pack',
-      body: `<p class="eyebrow">Sunday Pack</p><h1>For your day off</h1>
-        <div class="week">${dueRows}<div class="row"><span>Late</span><span class="v">${late}</span></div></div>
-        <div class="actionpick"><b>Your action</b>${esc(action)}</div>
-        <div class="saved">${LOCK}<span>Saved on this phone. Pick it up on your next day off.</span></div>`,
+      stepper: 'Day off',
+      body: `<h1>For your day off</h1>
+        ${packWeek(state)}
+        <div class="saved">${LOCK}<span>Saved on this phone. We\u2019ll pick this up next time you open.</span></div>`,
       actions: primary('Done', 'dayoff-done'),
+    })
+  },
+  ft00(state) {
+    return shell({
+      stepper: 'Fix',
+      body: `<h1>We can still make a plan</h1>
+        <p class="body">Split your pay. Pay yourself first. Fix what\u2019s late when you can.</p>
+        ${enteredFact(state)}
+        <div class="privstrip">The plan stays on this phone. Your progress can be saved.</div>
+        <button type="button" class="sidelink" data-act="sunday-pack">Sunday Pack</button>
+        <button type="button" class="sidelink" data-act="lessons">Lessons</button>`,
+      actions: `${primary('See what you can do', 'see-fix')}${quiet('Keep for now', 'back')}`,
+    })
+  },
+  ft03(state) {
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">You started this</span>
+        <h1>Pick up your day-off pack</h1>
+        <p class="body">Same pack. Check what\u2019s due, what\u2019s late, and your action.</p>
+        ${packWeek(state)}`,
+      actions: `${primary('Continue', 'pack-continue')}${quiet('Not now', 'pack-not-now')}`,
+    })
+  },
+  ft05(state) {
+    const left = planLeft(state) || 0
+    return shell({
+      stepper: 'Your plan',
+      body: `<h1 class="leftoverbig">${hk(left)} left this month</h1>
+        <p class="leftoversub">From your plan. Place it where you want.</p>
+        <div class="placepick">
+          <button type="button" class="door" data-act="place-part" data-part="home"><span class="t">Home</span><span class="s">Add to what you send home</span></button>
+          <button type="button" class="door" data-act="place-part" data-part="bills"><span class="t">Bills</span><span class="s">Add to bills or debt</span></button>
+          <button type="button" class="door" data-act="place-part" data-part="you"><span class="t">You</span><span class="s">Add to what you keep</span></button>
+          <button type="button" class="door" data-act="place-cushion"><span class="t">Keep as cushion</span><span class="s">Leave it unassigned for now</span></button>
+        </div>`,
+    })
+  },
+  ft07(state) {
+    const lender = state.lenders[state.fix?.papersIndex] || { name: 'This loan' }
+    const summary = contractSummary(state.contract)
+    const labels = (summary.warn ? summary.amber : summary.clear).join(' · ')
+    const door = (act, title, sub) => `<button type="button" class="door" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    return shell({
+      stepper: 'Check',
+      body: `<h1>You can still get better</h1>
+        <p class="body">We are not lawyers. Split your pay. Pay yourself first.</p>
+        <div class="fact"><b>${esc(lender.name)} · facts ready</b>${esc(labels)}</div>
+        <div class="helperslot"><b>Someone who can help</b>A helper will be named here. Not named yet.</div>
+        <div class="placepick teachdoors">
+          ${door('see-fix', 'See what you can do', 'Fix late · fit the month')}
+          ${door('sunday-pack', 'Sunday Pack', 'For your day off')}
+          ${door('lessons', 'Lessons', 'Split · pay yourself · GCash')}
+          ${door('papers-save', 'Save the facts', 'Keep on this phone')}
+        </div>`,
     })
   },
   papers(state, route) {
@@ -917,18 +1002,7 @@ const pages = {
     })
   },
   'papers-sum'(state) {
-    const lender = state.lenders[state.fix?.papersIndex] || { name: 'This loan' }
-    const summary = contractSummary(state.contract)
-    const chips = (summary.warn ? summary.amber : summary.clear)
-      .map((label) => `<span class="chip ${summary.warn ? 'amber' : 'ok'}">${esc(label)}</span>`).join('')
-    const lawyer = summary.warn
-      ? `<div class="stopbox"><b>We are not lawyers.</b>Offshore does not decide if a loan is allowed. There is no next step here until someone who helps with money is named.<div class="helperslot"><b>Someone who can help</b>A helper will be named here. Not named yet.</div></div>`
-      : '<p class="hint">Saved on this phone when you tap save.</p>'
-    return shell({
-      stepper: 'Check',
-      body: `<h1>Facts for your pack</h1><div class="fact"><b>${esc(lender.name)}</b>${chips}</div>${lawyer}`,
-      actions: primary('Save the facts', 'papers-save'),
-    })
+    return pages.ft07(state)
   },
   send(state) {
     const split = homeSplit(state.home, state.sendHome?.app || 0)

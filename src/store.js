@@ -24,6 +24,7 @@ export function freshState() {
     fix: freshFix(),
     sendHome: { app: '', saved: false, blocked: false },
     contract: freshContract(),
+    sundayPack: { started: false },
     checks: freshChecks(),
   }
 }
@@ -129,6 +130,7 @@ export function loadState() {
     state.fix = { ...freshFix(), ...(parsed.fix || {}) }
     state.sendHome = { app: '', saved: false, blocked: false, ...(parsed.sendHome || {}) }
     state.contract = { ...freshContract(), ...(parsed.contract || {}) }
+    state.sundayPack = { started: false, ...(parsed.sundayPack || {}) }
     state.afterSetup = null
     state.returnTo = null
     return rollMonth(state)

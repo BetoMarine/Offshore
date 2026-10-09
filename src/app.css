@@ -258,3 +258,55 @@ button.split, button.textlink {
   text-align: left;
 }
 button.split { display: block; margin-top: 4px; max-width: 240px; line-height: 1.35; }
+.placepick { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.placepick .door { min-height: 64px; padding: 12px 16px; }
+.placepick .door .t { font-size: 20px; }
+.followchip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  background: var(--os-clay-soft);
+  color: var(--os-clay);
+  margin: 0 0 10px;
+}
+h1.leftoverbig {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+.leftoversub { font-size: 18px; color: var(--os-muted); line-height: 1.4; margin: 0 0 16px; }
+.privstrip {
+  margin-top: 12px;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--os-muted);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  border: 1.5px solid var(--os-line);
+}
+button.sidelink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 4px 18px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 700 18px var(--os-font);
+  color: var(--os-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.teachdoors { margin-top: 8px; gap: 6px; }
+.teachdoors .door { min-height: 52px; padding: 8px 12px; }
+.teachdoors .door .t { font-size: 18px; line-height: 1.2; }
+.teachdoors .door .s { font-size: 15px; margin-top: 1px; line-height: 1.25; }
+.teachdoors .door::after { font-size: 28px; right: 12px; }

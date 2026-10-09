@@ -21,6 +21,8 @@ import {
   overduePoints,
   overdueTotal,
   planFigures,
+  planLeft,
+  planPartsEntered,
   projectFund,
   projectGoal,
   reachMonth,
@@ -90,6 +92,25 @@ assert.equal(billsParts(state).total, 1460)
 assert.equal(planFigures(state).left, 760)
 state.catchUp = '0'
 assert.equal(planFigures(state).left, 960)
+
+const duesOnly = {
+  pay: '5000',
+  owes: true,
+  lenders: [{ due: '1200', freq: 'monthly', overdue: true, overdueAmount: '2400', left: '10000' }],
+  home: '',
+  otherBills: '',
+  you: '',
+  catchUp: '',
+  catchUpEdited: false,
+}
+assert.equal(planPartsEntered(duesOnly), false)
+assert.equal(planLeft(duesOnly), null)
+assert.equal(debtMonthly(duesOnly.lenders) + overdueTotal(duesOnly.lenders), 3600)
+duesOnly.home = '500'
+duesOnly.otherBills = '200'
+duesOnly.you = '300'
+assert.equal(planPartsEntered(duesOnly), true)
+assert.equal(planLeft(duesOnly), planFigures(duesOnly).left)
 
 state.you = '1000'
 state.fund = { amount: '999999', by: '2027-10', monthly: '500' }

@@ -22,6 +22,7 @@ import {
   noteOverdue,
   overdueTotal,
   planFigures,
+  planPartsEntered,
   reduceDue,
   roundCents,
   sanitizeAmount,
@@ -42,7 +43,7 @@ import {
 const LENDER_STEPS = new Set(['o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3'])
 
 let state = loadState()
-let history = [{ screen: 'o00' }]
+let history = [{ screen: state.sundayPack?.started ? 'ft03' : 'o00' }]
 let browserIndex = 1
 let suppress = 0
 
@@ -134,8 +135,23 @@ function home() {
   resetToStart()
 }
 
+function partsReady() {
+  return planPartsEntered(state)
+}
+
+function openSundayPack() {
+  return go(state.sundayPack?.started ? 'ft03' : 'f07')
+}
+
 function planScreen() {
+  if (!partsReady()) return 'o05'
   return planFigures(state).over ? 'o10' : 'o09'
+}
+
+function hardPlan() {
+  if (!partsReady()) return false
+  const late = (state.lenders || []).some((lender) => lender.overdue && money(lender.overdueAmount) > 0)
+  return planFigures(state).over || late
 }
 
 function finishPlan() {
@@ -338,7 +354,7 @@ function answerPaper(value) {
   const step = route().step || 0
   state.contract[keys[step]] = value
   if (step < 4) return go('papers', { step: step + 1 })
-  return go('papers-sum')
+  return go('ft07')
 }
 
 function savePapers() {
@@ -348,7 +364,7 @@ function savePapers() {
     state.fix.lastAction = `Checked ${lender.name}\u2019s papers`
   }
   saveState(state)
-  go('f07')
+  return paintOnly()
 }
 
 function commitLender() {
@@ -401,7 +417,10 @@ function next() {
         state.returnTo = null
         return go(planScreen())
       }
-      if (state.afterSetup) return go('o07')
+      if (state.afterSetup) {
+        if (!partsReady()) return go('o05')
+        return state.home === '' ? go('o06') : go('o07')
+      }
       return go('o02a')
     case 'o02b': return go('o02c')
     case 'o02c': return go('o02d')
@@ -429,6 +448,8 @@ function next() {
       return go('o08')
     case 'o08':
       state.returnTo = null
+      if (!partsReady()) return go('o05')
+      if (hardPlan() && !state.afterSetup) return go('ft00')
       return go(planScreen())
     case 'o23': return go('o24')
     case 'o24': return go('o25')
@@ -590,11 +611,32 @@ function onClick(event) {
   if (act === 'to-plan' || act === 'to-home') return act === 'to-plan' ? go('o05') : go('o06')
   if (act === 'to-summary') return go('o02h')
   if (act === 'change-part') return go('parts')
-  if (act === 'plan-yes') {
-    if (state.fix?.lastAction) return go('f07')
-    return finishPlan()
+  if (act === 'plan-yes') return finishPlan()
+  if (act === 'dayoff-done') {
+    state.sundayPack = { ...(state.sundayPack || {}), started: true }
+    saveState(state)
+    return back()
   }
-  if (act === 'dayoff-done') return finishPlan()
+  if (act === 'sunday-pack') return openSundayPack()
+  if (act === 'see-fix') {
+    if (route().screen !== 'ft00') return go('ft00')
+    if (!partsReady()) return go('o05')
+    return go(planScreen())
+  }
+  if (act === 'place-left') {
+    const fig = planFigures(state)
+    if (!partsReady() || fig.over || fig.left <= 0) return go(planScreen())
+    return go('ft05')
+  }
+  if (act === 'place-part') {
+    state.returnTo = 'plan'
+    if (el.dataset.part === 'home') return go('o06')
+    if (el.dataset.part === 'bills') return go('o07')
+    return go('o08')
+  }
+  if (act === 'place-cushion') return go(planScreen())
+  if (act === 'pack-continue') return go(state.planSet ? 'o11' : 'o01')
+  if (act === 'pack-not-now') return go('o00')
   if (act === 'fix-fit') return go('f01')
   if (act === 'fit-part') {
     state.fix.part = el.dataset.part
