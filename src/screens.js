@@ -19,6 +19,7 @@ import {
   planFigures,
   planLeft,
   planPartsEntered,
+  saveableGap,
   projectFund,
   projectGoal,
   reduceDue,
@@ -960,6 +961,55 @@ const pages = {
           <button type="button" class="door" data-act="place-part" data-part="bills"><span class="t">Bills</span><span class="s">Add to bills or debt</span></button>
           <button type="button" class="door" data-act="place-part" data-part="you"><span class="t">You</span><span class="s">Add to what you keep</span></button>
           <button type="button" class="door" data-act="place-cushion"><span class="t">Keep as cushion</span><span class="s">Leave it unassigned for now</span></button>
+        </div>`,
+    })
+  },
+  ft08(state) {
+    const fig = saveableGap(state) || planFigures(state)
+    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">Day-off pack done</span>
+        <h1>Room to save this month</h1>
+        <p class="leftoversub">Pay you entered · Out from your plan. Nothing we made up.</p>
+        <div class="rows">
+          ${row('Pay', fig.pay)}
+          ${row('Home', fig.home)}
+          ${row('Bills', fig.bills)}
+          ${row('You', fig.you)}
+          <div class="row total"><span class="k">Left</span><span class="v">${hk(fig.left)}</span></div>
+        </div>
+        <p class="hint">Left is room to start saving.</p>`,
+      actions: `${primary('See where it can go', 'gap-go')}${quiet('Done for now', 'pack-later')}`,
+    })
+  },
+  ft09(state) {
+    const fig = saveableGap(state) || planFigures(state)
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">Day-off pack done</span>
+        <h1>${hk(fig.left)} left this month</h1>
+        <div class="catchline"><b>Your pack helped</b>Catch-up placed · late cleared. That freed room in your plan.</div>
+        <p class="leftoversub" style="margin-top:14px">From pay and your plan only \u2014 not invented.</p>
+        <div class="rows" style="margin-top:4px">
+          <div class="row"><span class="k">Pay</span><span class="v">${hk(fig.pay)}</span></div>
+          <div class="row"><span class="k">Out</span><span class="v">${hk(fig.out)}</span></div>
+          <div class="row total"><span class="k">Left</span><span class="v">${hk(fig.left)}</span></div>
+        </div>`,
+      actions: `${primary('See where it can go', 'gap-go')}${quiet('Done for now', 'pack-later')}`,
+    })
+  },
+  ft10(state) {
+    const fig = saveableGap(state) || planFigures(state)
+    const door = (act, title, sub) => `<button type="button" class="door" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    return shell({
+      stepper: 'Your plan',
+      body: `<h1>Start a cushion</h1>
+        <p class="leftoversub">${hk(fig.left)} left from your plan. Put it where it can grow.</p>
+        <div class="placepick">
+          ${door('cushion-you', 'Put toward You', 'Add to what you keep')}
+          ${door('cushion-fund', 'Start a fund', 'Money for emergencies')}
+          ${door('cushion-else', 'Place elsewhere', 'Home · Bills · or keep unassigned')}
         </div>`,
     })
   },

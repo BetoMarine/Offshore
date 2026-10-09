@@ -156,6 +156,22 @@ export function planLeft(state) {
   return planFigures(state).left
 }
 
+/** Room to save only after she entered the plan and expenses are under her pay. */
+export function saveableGap(state) {
+  if (!planPartsEntered(state)) return null
+  const fig = planFigures(state)
+  if (!(fig.left > 0) || fig.over) return null
+  return fig
+}
+
+/** Pack actions freed room: catch-up is in the plan and nothing is still late. */
+export function packFreedRoom(state) {
+  if (!saveableGap(state)) return false
+  const late = (state.lenders || []).some((lender) => lender.overdue && money(lender.overdueAmount) > 0)
+  if (late) return false
+  return money(state.catchUp) > 0
+}
+
 /** Months from the current month up to, but not including, the target month. */
 export function monthsUntil(from, ym) {
   if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return 0

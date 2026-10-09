@@ -21,8 +21,10 @@ import {
   monthLong,
   noteOverdue,
   overdueTotal,
+  packFreedRoom,
   planFigures,
   planPartsEntered,
+  saveableGap,
   reduceDue,
   roundCents,
   sanitizeAmount,
@@ -120,6 +122,21 @@ function back() {
   const gone = retreat()
   if (!gone) return
   moveBrowser(-gone)
+}
+
+function isPackScreen(screen) {
+  return screen === 'f07' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10'
+}
+
+function leavePack() {
+  let gone = 0
+  while (history.length > 1 && isPackScreen(history[history.length - 1].screen)) {
+    history.pop()
+    gone += 1
+  }
+  saveState(state)
+  paint()
+  if (gone) moveBrowser(-gone)
 }
 
 function resetToStart() {
@@ -615,8 +632,22 @@ function onClick(event) {
   if (act === 'dayoff-done') {
     state.sundayPack = { ...(state.sundayPack || {}), started: true }
     saveState(state)
-    return back()
+    if (!saveableGap(state)) return back()
+    return go(packFreedRoom(state) ? 'ft09' : 'ft08')
   }
+  if (act === 'gap-go') return saveableGap(state) ? go('ft10') : leavePack()
+  if (act === 'pack-later') return leavePack()
+  if (act === 'cushion-you') {
+    state.returnTo = 'plan'
+    return go('o08')
+  }
+  if (act === 'cushion-fund') {
+    state.fundDraft = state.fund
+      ? { amount: state.fund.amount || '', by: state.fund.by || '', monthly: state.fund.monthly || '' }
+      : { amount: '', by: '', monthly: '' }
+    return go('o23')
+  }
+  if (act === 'cushion-else') return saveableGap(state) ? go('ft05') : go(planScreen())
   if (act === 'sunday-pack') return openSundayPack()
   if (act === 'see-fix') {
     if (route().screen !== 'ft00') return go('ft00')
@@ -635,7 +666,12 @@ function onClick(event) {
     return go('o08')
   }
   if (act === 'place-cushion') return go(planScreen())
-  if (act === 'pack-continue') return go(state.planSet ? 'o11' : 'o01')
+  if (act === 'pack-continue') {
+    state.sundayPack = { ...(state.sundayPack || {}), started: true }
+    saveState(state)
+    if (packFreedRoom(state)) return go('ft09')
+    return go(state.planSet ? 'o11' : 'o01')
+  }
   if (act === 'pack-not-now') return go('o00')
   if (act === 'fix-fit') return go('f01')
   if (act === 'fit-part') {

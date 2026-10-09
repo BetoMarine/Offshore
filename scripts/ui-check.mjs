@@ -6,14 +6,14 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/fifth'
+const prefix = '/Offshore/preview/sixth'
 const shots = '/opt/cursor/artifacts'
 const required = [
   'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
   'o03', 'o04', 'o05', 'o06', 'o07', 'o08', 'o09', 'o10', 'o11', 'o12',
   'o13', 'o14', 'o15', 'o16', 'o17', 'o18', 'o19', 'o20', 'o21', 'o22a', 'o22b',
   'o23', 'o24', 'o25', 'o26', 'o27', 'o28', 'o29', 'o30', 'o31', 'o32', 'o33', 'o34', 'o35', 'parts', 'o02r',
-  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'f07', 'ft00', 'ft03', 'ft05', 'ft07', 'papers', 'papers-who', 'send', 'l20', 'l24',
+  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'f07', 'ft00', 'ft03', 'ft05', 'ft07', 'ft08', 'ft09', 'ft10', 'papers', 'papers-who', 'send', 'l20', 'l24',
 ]
 
 const types = {
@@ -765,7 +765,26 @@ try {
   if (!text.includes('You started this') || !text.includes('Pick up your day-off pack')) {
     throw new Error(`sunday pack follow-up missing:\n${text}`)
   }
+  await clickText('Continue')
+  text = await bodyText()
+  if (!text.includes('Your pack helped') || !text.includes('Catch-up placed · late cleared. That freed room in your plan.')) {
+    throw new Error(`pack helped room missing:\n${text}`)
+  }
+  if (!text.includes('From pay and your plan only') || text.includes('Room to save this month')) {
+    throw new Error(`helped room showed the plain gap:\n${text}`)
+  }
+  if (/what are you doing|cannot help|no next step/i.test(text)) throw new Error(`helped room blocked help:\n${text}`)
+  await clickText('See where it can go')
+  text = await bodyText()
+  if (!text.includes('Start a cushion') || !text.includes('Put it where it can grow.')) {
+    throw new Error(`cushion missing:\n${text}`)
+  }
+  if (!(await page.$('[data-act="cushion-you"]')) || !(await page.$('[data-act="cushion-fund"]')) || !(await page.$('[data-act="cushion-else"]'))) {
+    throw new Error('cushion doors missing')
+  }
   await clickSel('[data-act="back"]')
+  await clickText('Done for now')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o09') throw new Error('done for now left the plan')
   await clickText('This is my plan')
   if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') throw new Error('plan did not return to the month')
   if (!(await page.$('[data-act="papers"]'))) throw new Error('papers missing on the month')
@@ -906,6 +925,22 @@ try {
   await clickSel('[data-act="sunday-pack"]')
   if (!((await bodyText()).includes('For your day off'))) throw new Error('debt path missed the day-off pack')
   await clickText('Done')
+  text = await bodyText()
+  if (!text.includes('Room to save this month') || !text.includes('Left is room to start saving.')) {
+    throw new Error(`saveable gap missing:\n${text}`)
+  }
+  if (!text.includes('Pay you entered · Out from your plan. Nothing we made up.')) throw new Error(text)
+  if (text.includes('Your pack helped') || text.includes('HK$3,600') || text.includes('HK$1,400')) {
+    throw new Error(`gap invented spend or stacked both results:\n${text}`)
+  }
+  if (!text.includes('HK$400')) throw new Error(`gap left missing:\n${text}`)
+  await clickText('See where it can go')
+  text = await bodyText()
+  if (!text.includes('Start a cushion') || !text.includes('HK$400 left from your plan.')) {
+    throw new Error(`cushion from the gap missing:\n${text}`)
+  }
+  await clickSel('[data-act="back"]')
+  await clickText('Done for now')
   await clickText('This is my plan')
   await clickText('Go to lessons')
   if (!((await bodyText()).includes('Open your own GCash'))) throw new Error('debt path missed lessons')

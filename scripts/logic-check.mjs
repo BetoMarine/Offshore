@@ -20,9 +20,11 @@ import {
   onTimePoints,
   overduePoints,
   overdueTotal,
+  packFreedRoom,
   planFigures,
   planLeft,
   planPartsEntered,
+  saveableGap,
   projectFund,
   projectGoal,
   reachMonth,
@@ -105,6 +107,8 @@ const duesOnly = {
 }
 assert.equal(planPartsEntered(duesOnly), false)
 assert.equal(planLeft(duesOnly), null)
+assert.equal(saveableGap(duesOnly), null)
+assert.equal(packFreedRoom(duesOnly), false)
 assert.equal(debtMonthly(duesOnly.lenders) + overdueTotal(duesOnly.lenders), 3600)
 duesOnly.home = '500'
 duesOnly.otherBills = '200'
