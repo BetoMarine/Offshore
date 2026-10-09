@@ -1,11 +1,19 @@
 # Offshore
 
-Phone web app for Hong Kong domestic helpers. She decides every number. The app teaches the steps and keeps the plan on this phone.
+A phone web app for Hong Kong domestic helpers. She is the CEO of her own life. She decides every number. Offshore shows the steps and keeps the plan on this phone.
 
-This repository is a **preview**, not a live product. Nothing here is the public release.
+This repository is a **preview**, not a live product.
 
-The preview is built to be published at:
+GitHub Pages is on. The latest preview is:
 
-`https://betomarine.github.io/Offshore/preview/first/`
+`https://betomarine.github.io/Offshore/preview/sixth/`
 
-GitHub Pages source, once enabled: the `gh-pages` branch, folder `/`. The workflow `.github/workflows/preview.yml` publishes `dist` into `preview/first` and keeps older preview folders.
+The first preview stays at `preview/first/`. The second preview stays at `preview/second/`. The third preview stays at `preview/third/`. The fourth preview stays at `preview/fourth/`. The fifth preview stays at `preview/fifth/`. `.github/workflows/preview.yml` publishes `dist` into `preview/sixth` and keeps older preview folders.
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run check:logic
+npm run check:ui
+```
