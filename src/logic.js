@@ -108,8 +108,9 @@ export function overdueTotal(lenders) {
 
 export function catchUpValue(state) {
   const cap = state.owes === false ? 0 : overdueTotal(state.lenders)
+  if (state.owes === false) return '0'
   if (!state.catchUpEdited) return formatAmount(cap)
-  return formatAmount(Math.min(cap, money(state.catchUp)))
+  return formatAmount(money(state.catchUp))
 }
 
 /** Catch up follows overdue: never above it, and 0 when overdue is 0. */
@@ -327,6 +328,84 @@ export function todayISO(now = new Date()) {
 
 export function isPastDate(iso, now = new Date()) {
   return !!iso && iso < todayISO(now)
+}
+
+/** A next payment date that has already passed is late. She can continue. */
+export function passedDueIsLate(iso, now = new Date()) {
+  return isPastDate(iso, now)
+}
+
+export function dueThisWeek(lenders, now = new Date()) {
+  const start = todayISO(now)
+  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7)
+  const end = todayISO(endDate)
+  return (lenders || []).filter((lender) => lender.nextDate && lender.nextDate >= start && lender.nextDate <= end)
+}
+
+export function shrinkableBills(state) {
+  const parts = billsParts(state)
+  return roundCents(parts.other + parts.catchUp)
+}
+
+/** How much of a plan part a cut actually removes, and the gap left after it. */
+export function cutResult(state, part, rawAmount) {
+  const fig = planFigures(state)
+  const ask = Math.max(0, money(rawAmount))
+  let cap = 0
+  if (part === 'home') cap = fig.home
+  else if (part === 'you') cap = fig.you
+  else cap = shrinkableBills(state)
+  const applied = roundCents(Math.min(ask, cap))
+  const gap = roundCents(Math.max(0, fig.out - applied - fig.pay))
+  return { applied, gap, over: fig.out - applied > fig.pay + 0.001 }
+}
+
+/** The typed amount is the monthly fund. The due drops by that same amount, not below 0. */
+export function reduceDue(lender, rawAmount) {
+  const due = money(lender?.due)
+  const applied = roundCents(Math.min(Math.max(0, money(rawAmount)), due))
+  return { due: formatAmount(due - applied), monthly: formatAmount(applied), applied }
+}
+
+/** She confirms a payment toward what is late. Cap at the overdue still left. */
+export function markPaidAmount(lender, rawAmount) {
+  const late = lender?.overdue ? money(lender.overdueAmount) : 0
+  const applied = roundCents(Math.min(Math.max(0, money(rawAmount)), late))
+  const left = roundCents(Math.max(0, late - applied))
+  return { applied, left, cleared: left <= 0.001 }
+}
+
+/** Cash only is what is left after the app part. An app part above the total does not save. */
+export function homeSplit(total, appPart) {
+  const home = money(total)
+  const app = money(appPart)
+  if (app > home + 0.001) return { ok: false, app, home, cash: 0 }
+  return { ok: true, app, home, cash: roundCents(home - app) }
+}
+
+/**
+ * Five answers, then one summary. Not sure is amber. Never a verdict.
+ * Hold and take are amber when the answer is yes.
+ */
+export function contractSummary(answers = {}) {
+  const amber = []
+  const clear = []
+  if (answers.writing === 'yes') clear.push('In writing')
+  else if (answers.writing === 'no') amber.push('Not in writing')
+  else amber.push('Writing: not sure')
+  if (answers.rate === 'yes') clear.push('Rate and total on the paper')
+  else if (answers.rate === 'no') amber.push('No rate and total')
+  else amber.push('Rate and total: not sure')
+  if (answers.licence === 'yes') clear.push('They said they have a licence')
+  else if (answers.licence === 'no') amber.push('Licence: they did not say')
+  else amber.push('Licence: not sure')
+  if (answers.hold === 'no') clear.push('Nothing held')
+  else if (answers.hold === 'yes') amber.push('Someone holds your passport, phone or card')
+  else amber.push('Not sure if someone holds your passport, phone or card')
+  if (answers.take === 'no') clear.push('No take from pay')
+  else if (answers.take === 'yes') amber.push('Can take from your pay')
+  else amber.push('Not sure if they can take from your pay')
+  return { warn: amber.length > 0, amber, clear }
 }
 
 export function lenderFromDraft(draft) {

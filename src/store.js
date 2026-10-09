@@ -21,8 +21,32 @@ export function freshState() {
     goalDraft: { name: '', amount: '', by: '', index: -1 },
     afterSetup: null,
     returnTo: null,
+    fix: freshFix(),
+    sendHome: { app: '', saved: false, blocked: false },
+    contract: freshContract(),
     checks: freshChecks(),
   }
+}
+
+export function freshFix() {
+  return {
+    part: 'home',
+    cutAmount: '',
+    lastCutPart: '',
+    lastCutAmount: '',
+    catchIndex: -1,
+    fundIndex: -1,
+    papersIndex: -1,
+    markIndex: -1,
+    markAmount: '',
+    catchAmount: '',
+    fundLess: '',
+    lastAction: '',
+  }
+}
+
+export function freshContract() {
+  return { writing: '', rate: '', licence: '', hold: '', take: '' }
 }
 
 function freshChecks(month = currentMonthKey()) {
@@ -102,6 +126,9 @@ export function loadState() {
     state.goalDraft = parsed.goalDraft || { name: '', amount: '', by: '', index: -1 }
     if (!Array.isArray(state.lenders)) state.lenders = []
     if (!Array.isArray(state.goals)) state.goals = []
+    state.fix = { ...freshFix(), ...(parsed.fix || {}) }
+    state.sendHome = { app: '', saved: false, blocked: false, ...(parsed.sendHome || {}) }
+    state.contract = { ...freshContract(), ...(parsed.contract || {}) }
     state.afterSetup = null
     state.returnTo = null
     return rollMonth(state)

@@ -6,9 +6,9 @@ This repository is a **preview**, not a live product.
 
 GitHub Pages is on. The latest preview is:
 
-`https://betomarine.github.io/Offshore/preview/second/`
+`https://betomarine.github.io/Offshore/preview/third/`
 
-The first preview stays at `preview/first/`. `.github/workflows/preview.yml` publishes `dist` into `preview/second` and keeps older preview folders.
+The first preview stays at `preview/first/`. The second preview stays at `preview/second/`. `.github/workflows/preview.yml` publishes `dist` into `preview/third` and keeps older preview folders.
 
 ```bash
 npm install

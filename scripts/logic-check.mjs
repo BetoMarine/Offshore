@@ -28,6 +28,13 @@ import {
   sanitizeAmount,
   scoreOf,
   keptPoints,
+  contractSummary,
+  cutResult,
+  dueThisWeek,
+  homeSplit,
+  markPaidAmount,
+  passedDueIsLate,
+  reduceDue,
 } from '../src/logic.js'
 
 const oct = new Date(2026, 9, 6)
@@ -214,6 +221,75 @@ assert.equal(locked.checks.overdueBaseline, 500)
 
 assert.equal(isPastDate('2026-10-05', oct), true)
 assert.equal(isPastDate('2026-10-06', oct), false)
+assert.equal(passedDueIsLate('2026-10-05', oct), true)
+assert.equal(passedDueIsLate('2026-10-06', oct), false)
+assert.equal(dueThisWeek([
+  { nextDate: '2026-10-06' },
+  { nextDate: '2026-10-13' },
+  { nextDate: '2026-10-14' },
+], oct).length, 2)
+
+const cut = cutResult({
+  pay: '5220',
+  home: '9000',
+  otherBills: '500',
+  you: '1000',
+  catchUp: '0',
+  catchUpEdited: true,
+  owes: true,
+  lenders: [],
+  fund: null,
+}, 'home', '100')
+assert.equal(cut.applied, 100)
+assert.equal(cut.over, true)
+const billCut = cutResult({
+  pay: '1000',
+  home: '0',
+  otherBills: '400',
+  you: '0',
+  catchUp: '300',
+  catchUpEdited: true,
+  owes: true,
+  lenders: [],
+  fund: null,
+}, 'bills', '500')
+assert.equal(billCut.applied, 500)
+assert.equal(billCut.gap, 0)
+const keptCatch = {
+  pay: '5220',
+  home: '2000',
+  otherBills: '500',
+  you: '1000',
+  catchUp: '300',
+  catchUpEdited: true,
+  owes: true,
+  lenders: [{ due: '500', freq: 'monthly', overdue: false, overdueAmount: '' }],
+  fund: null,
+}
+assert.equal(catchUpValue(keptCatch), '300')
+assert.equal(billsParts(keptCatch).catchUp, 300)
+
+const reduced = reduceDue({ due: '500', freq: 'monthly' }, '200')
+assert.equal(reduced.due, '300')
+assert.equal(reduced.monthly, '200')
+assert.equal(reduceDue({ due: '100' }, '250').due, '0')
+
+const partialPaid = markPaidAmount({ overdue: true, overdueAmount: '500' }, '200')
+assert.equal(partialPaid.left, 300)
+assert.equal(partialPaid.cleared, false)
+assert.equal(markPaidAmount({ overdue: true, overdueAmount: '300' }, '300').cleared, true)
+assert.equal(markPaidAmount({ overdue: true, overdueAmount: '300' }, '900').left, 0)
+
+assert.equal(homeSplit('3500', '4000').ok, false)
+assert.equal(homeSplit('3500', '1000').cash, 2500)
+
+const amberPapers = contractSummary({ writing: 'no', rate: 'unsure', licence: 'no', hold: 'yes', take: 'yes' })
+assert.equal(amberPapers.warn, true)
+assert.equal(amberPapers.amber.includes('Not in writing'), true)
+assert.equal(JSON.stringify(amberPapers).includes('illegal'), false)
+const clearPapers = contractSummary({ writing: 'yes', rate: 'yes', licence: 'yes', hold: 'no', take: 'no' })
+assert.equal(clearPapers.warn, false)
+assert.equal(clearPapers.clear.includes('In writing'), true)
 assert.equal(reachMonth(6000, 500, oct), '2027-10')
 assert.equal(projectFund({ amount: '6000', by: '2026-11', monthly: '500' }, oct).reach, '2027-10')
 

@@ -6,13 +6,14 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/second'
+const prefix = '/Offshore/preview/third'
 const shots = '/opt/cursor/artifacts'
 const required = [
   'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
   'o03', 'o04', 'o05', 'o06', 'o07', 'o08', 'o09', 'o10', 'o11', 'o12',
   'o13', 'o14', 'o15', 'o16', 'o17', 'o18', 'o19', 'o20', 'o21', 'o22a', 'o22b',
   'o23', 'o24', 'o25', 'o26', 'o27', 'o28', 'o29', 'o30', 'o31', 'o32', 'o33', 'o34', 'o35', 'parts', 'o02r',
+  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'f07', 'papers', 'papers-who', 'papers-sum', 'send', 'l20', 'l24',
 ]
 
 const types = {
@@ -169,8 +170,13 @@ try {
   await fill('Amount', '500')
   await clickText('Next')
   await fill('Next date', '2026-10-01')
-  if (!(await page.$eval('[data-act="next"]', (el) => el.disabled))) throw new Error('past due date was allowed')
-  if (!(await bodyText()).includes('That date has passed. Pick a later date.')) throw new Error('past date hint missing')
+  if (await page.$eval('[data-act="next"]', (el) => el.disabled)) throw new Error('past due blocked Next')
+  if (!(await bodyText()).includes('That date has passed. This payment is late.')) throw new Error('past date hint missing')
+  await clickText('Next')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o02g2') {
+    throw new Error('a passed due did not open the late amount')
+  }
+  await clickSel('[data-act="back"]')
   await fill('Next date', '2026-10-25')
   await clickText('Next')
   await clickText('Yes')
@@ -326,6 +332,9 @@ try {
   await clickText('Next')
   text = await bodyText()
   if (!text.includes('HK$760')) throw new Error(`left did not include catch up:\n${text}`)
+  if (!text.includes('Still late') || !text.includes('HK$500')) {
+    throw new Error(`a plan that fits hid the late amount:\n${text}`)
+  }
   await shot('plan-summary.png')
   await clickText('Change a part')
   await clickSel('[data-part="bills"]')
@@ -336,6 +345,9 @@ try {
   await clickText('This is my plan')
 
   await clickText('Go to lessons')
+  text = await bodyText()
+  if (!text.includes('Make sure the money is going where it needs to go.')) throw new Error(`lesson story missing:\n${text}`)
+  if (!text.includes('What you send home')) throw new Error(`send-home line missing:\n${text}`)
   await clickSel('[data-app="ahk"]')
   await clickText("I'm stuck")
   await clickText('Back to the step')
@@ -366,6 +378,12 @@ try {
   await clickText('Next lesson')
   await clickText('Done')
   await clickText('Yes, I did it')
+  await clickText('Next lesson')
+  await clickText('Done')
+  await clickText('Yes, I did it')
+  await clickText('Next lesson')
+  await clickText('Done')
+  await clickText('Yes, I did it')
   await clickText('Back to your month')
   const scoreBeforeHomeChange = await scoreNumber()
 
@@ -384,7 +402,7 @@ try {
   await clickText('Next')
   text = await bodyText()
   if (!text.includes('more than you get')) throw new Error(`over plan missing:\n${text}`)
-  await clickText('Keep it for now')
+  await clickText('Keep for now')
   if (await scoreNumber() !== scoreBeforeHomeChange) throw new Error('score moved when she sent more home')
   const sentLine = await bodyText()
   if (!sentLine.includes('15 of 15') && !sentLine.includes('Sent home')) {
@@ -427,7 +445,7 @@ try {
   await clickText('Next')
   text = await bodyText()
   if (!text.includes('HK$5,220')) throw new Error(`savings plan has no pay:\n${text}`)
-  await clickText('Keep it for now')
+  await clickText('Keep for now')
   await fill('Amount', '6000')
   await clickText('Next')
   const fundWhen = await page.evaluate(() => {
@@ -459,7 +477,7 @@ try {
   await clickText('Next')
   text = await bodyText()
   if (!text.includes('HK$5,220')) throw new Error(`goals plan has no pay:\n${text}`)
-  await clickText('Keep it for now')
+  await clickText('Keep for now')
   await fill('Goal name', 'School fees')
   await clickText('Next')
   await fill('Amount', '2000')
@@ -544,6 +562,141 @@ try {
   await clickSel('[data-act="exit"]')
   if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') {
     throw new Error('exit did not open the first page')
+  }
+
+  await clickText('Start')
+  await clickSel('[data-door="fix"]')
+  await clickText('Next')
+  await clickText('Yes')
+  await clickText('That’s all')
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Make my plan')
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Next')
+  text = await bodyText()
+  if (!text.includes('Nothing is late.')) throw new Error(`late showed with nothing overdue:\n${text}`)
+  if (!text.includes('more than you get')) throw new Error(`short month missing:\n${text}`)
+  if (await page.$('[data-act="fix-catch"]')) throw new Error('catch up showed when nothing was late')
+  if (!(await page.$('[data-act="fix-fit"]'))) throw new Error('make this month fit was missing')
+  if (!(await page.$('[data-act="fix-fund"]'))) throw new Error('start the fund now was missing')
+  await clickSel('[data-act="fix-fund"]')
+  await clickSel('[data-act="fund-pick"][data-index="0"]')
+  await fill('Less', '200')
+  text = await bodyText()
+  if (!text.includes('due becomes HK$300')) throw new Error(`fund less did not drop the due:\n${text}`)
+  await clickText('Start my fund')
+  const fundFix = await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem('offshore-data'))
+    return {
+      due: data.lenders[0].due,
+      overdue: data.lenders[0].overdue,
+      monthly: data.fund.monthly,
+      amount: data.fund.amount,
+      by: data.fund.by,
+      fromFix: data.fund.fromFix,
+      catchUp: data.catchUp,
+    }
+  })
+  if (fundFix.due !== '300' || fundFix.monthly !== '200' || fundFix.fromFix !== true) {
+    throw new Error(`fund from fix ${JSON.stringify(fundFix)}`)
+  }
+  if (fundFix.amount !== '' || fundFix.by !== '' || fundFix.overdue) {
+    throw new Error(`fund from fix changed overdue or set a target ${JSON.stringify(fundFix)}`)
+  }
+  await clickText('Keep for now')
+  text = await bodyText()
+  if (!text.includes('Saved on this phone. Pick it up on your next day off.')) {
+    throw new Error(`day off line missing:\n${text}`)
+  }
+  await clickText('Done')
+  await clickText('See your life')
+  text = await bodyText()
+  if (!text.includes('HK$200 a month') || !text.includes('No target yet. You can set one later.')) {
+    throw new Error(`fix fund showed a target:\n${text}`)
+  }
+  if (/on track/i.test(text)) throw new Error(`fix fund said on track:\n${text}`)
+  await clickSel('[data-act="today"]')
+  await clickSel('[data-act="today"]')
+  await clickSel('[data-act="fix-fit"]')
+  await clickSel('[data-act="fit-part"][data-part="home"]')
+  await fill('Cut', '100')
+  await clickText('Update my plan')
+  text = await bodyText()
+  if (!text.includes('The gap is still there. You can cut again.')) throw new Error(`partial cut hid the gap:\n${text}`)
+  if (!text.includes('more than you get')) throw new Error(`partial cut was treated as a fit:\n${text}`)
+  await clickSel('[data-act="fix-fund"]')
+  await clickText('Check this loan’s papers')
+  await clickText('Card')
+  await clickText('No')
+  await clickText('Not sure')
+  await clickText('No')
+  await clickText('Yes')
+  await clickText('Yes')
+  text = await bodyText()
+  if (!text.includes('We are not lawyers.')) throw new Error(`lawyer line missing:\n${text}`)
+  if (!text.includes('Someone who can help') || !text.includes('A helper will be named here. Not named yet.')) {
+    throw new Error(`helper slot missing:\n${text}`)
+  }
+  if (/illegal|hotline|https?:/i.test(text)) throw new Error(`papers named a verdict or a contact:\n${text}`)
+  await clickText('Save the facts')
+  await clickText('Done')
+  await clickSel('[data-act="owe"]')
+  await clickSel('[data-act="edit-lender"][data-index="0"]')
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Yes')
+  await fill('Amount', '500')
+  await clickText('Next')
+  await fill('Overdue since', '2026-09-25')
+  await clickText('Next')
+  for (let step = 0; step < 6; step += 1) {
+    if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o11') break
+    await clickSel('[data-act="back"]')
+  }
+  await clickSel('[data-act="today"]')
+  await clickSel('[data-act="fix-catch"]')
+  await clickSel('[data-act="catch-pick"][data-index="0"]')
+  await fill('Catch up amount', '300')
+  await clickText('Update my plan')
+  text = await bodyText()
+  if (!text.includes('Includes HK$300') || !text.includes('still late by HK$500')) {
+    throw new Error(`catch up plan:\n${text}`)
+  }
+  await clickText('Mark Card paid')
+  await fill('Paid', '200')
+  await clickText('Mark as paid')
+  text = await bodyText()
+  if (!text.includes('still late by HK$300') || !text.includes('Includes HK$300')) {
+    throw new Error(`partial mark:\n${text}`)
+  }
+  await clickText('Mark Card paid')
+  await fill('Paid', '300')
+  await clickText('Mark as paid')
+  text = await bodyText()
+  if (!text.includes('late is cleared') || !text.includes('Includes HK$300') || text.includes('still late')) {
+    throw new Error(`full mark:\n${text}`)
+  }
+  await clickText('On the app or cash only')
+  await fill('Pay on the app', '9000')
+  await clickText('Continue')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'send') {
+    throw new Error('an app part above the total was saved')
+  }
+  if (!(await bodyText()).includes('The app part cannot be more than the total.')) {
+    throw new Error('too-big app part had no note')
+  }
+  await fill('Pay on the app', '1000')
+  await clickText('Continue')
+  text = await bodyText()
+  if (!text.includes('On the app') || !text.includes('Cash only')) throw new Error(`home split missing:\n${text}`)
+  await clickSel('[data-act="exit"]')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') {
+    throw new Error('exit after fix did not open the first page')
   }
 
   await page.evaluate(async () => {

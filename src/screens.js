@@ -12,9 +12,14 @@ import {
   monthShort,
   monthlyDue,
   overdueTotal,
+  contractSummary,
+  cutResult,
+  dueThisWeek,
+  homeSplit,
   planFigures,
   projectFund,
   projectGoal,
+  reduceDue,
   roundCents,
   scoreOf,
   SCORE_MAX,
@@ -154,6 +159,80 @@ export function view(state, route) {
   if (!page) return shell({ body: '<h1>Offshore</h1>', actions: quiet('Back to start', 'home') })
   return page(state, route)
 }
+
+function homeSplitHtml(state) {
+  if (!state.sendHome?.saved) {
+    return '<button type="button" class="split" data-act="send-home">On the app or cash only</button>'
+  }
+  const split = homeSplit(state.home, state.sendHome.app)
+  return `<span class="split">On the app ${hk(split.app)} · Cash only ${hk(split.cash)}</span>`
+}
+
+function lateLenders(state) {
+  return (state.lenders || []).filter((lender) => lender.overdue && money(lender.overdueAmount) > 0)
+}
+
+function fixDoorHtml(state) {
+  const fig = planFigures(state)
+  const late = lateLenders(state).length > 0
+  const doors = []
+  if (fig.over) {
+    doors.push('<button type="button" class="door" data-act="fix-fit"><span class="t">Make this month fit</span><span class="s">Shrink one part until the month fits</span></button>')
+  }
+  if (late) {
+    doors.push('<button type="button" class="door" data-act="fix-catch"><span class="t">Catch up this one</span><span class="s">Pay toward what is late, on a loan you pick</span></button>')
+  }
+  if (fig.over || late) {
+    doors.push('<button type="button" class="door" data-act="fix-fund"><span class="t">Start the fund now</span><span class="s">Pay a bit less on a loan; keep that for yourself</span></button>')
+  }
+  return doors.length ? `<div class="doors">${doors.join('')}</div>` : ''
+}
+
+function cutHint(state) {
+  if (!state.fix?.lastCutAmount) return ''
+  const part = state.fix.lastCutPart === 'you' ? 'You' : state.fix.lastCutPart === 'bills' ? 'Bills' : 'Home'
+  const line = `You cut ${part} by ${hk(state.fix.lastCutAmount)}.`
+  if (planFigures(state).over) return `${line} The gap is still there. You can cut again.`
+  return `${line} Change any part any time.`
+}
+
+function catchUpLine(state) {
+  const amount = money(state.catchUp)
+  if (amount <= 0 || state.fix?.catchIndex == null || state.fix.catchIndex < 0) return ''
+  const lender = state.lenders[state.fix.catchIndex]
+  if (!lender) return ''
+  const still = lender.overdue && money(lender.overdueAmount) > 0
+  const late = still
+    ? `${esc(lender.name)} is still late by ${hk(lender.overdueAmount)} until you mark it paid.`
+    : `${esc(lender.name)} late is cleared.`
+  const mark = still
+    ? `<p class="hint"><button type="button" class="textlink" data-act="mark-paid" data-index="${state.fix.catchIndex}">Mark ${esc(lender.name)} paid</button> · Change any part any time.</p>`
+    : ''
+  return `<div class="catchline"><b>Inside Bills</b>Includes ${hk(amount)} catch up on ${esc(lender.name)}. ${late}</div>${mark}`
+}
+
+function stillLateLine(state) {
+  const lates = lateLenders(state)
+  if (!lates.length) return ''
+  const text = lates.map((lender) => `${esc(lender.name)} is still late by ${hk(lender.overdueAmount)}.`).join(' ')
+  return `<div class="catchline late"><b>Still late</b>${text}</div>`
+}
+
+function dueFact(state) {
+  const bits = (state.lenders || []).map((lender) => {
+    const often = lender.freq === 'monthly' ? 'a month' : freqWord(lender.freq)
+    return `${esc(lender.name)} due ${hk(lender.due)} ${often}`
+  })
+  return bits.join(' · ')
+}
+
+const PAPER_QUESTIONS = [
+  { key: 'writing', h1: 'Is it in writing?', body: 'A paper or a message you can show.' },
+  { key: 'rate', h1: 'Does it say the rate and the total?', body: 'Interest, and how much you pay back in all.' },
+  { key: 'licence', h1: 'Did they say they have a money-lender licence?', body: 'We only save what you heard. We do not decide.' },
+  { key: 'hold', h1: 'Does anyone hold your passport, phone or card?', body: '' },
+  { key: 'take', h1: 'Can they take from your pay without you saying yes each time?', body: '' },
+]
 
 const pages = {
   o00(state) {
@@ -375,33 +454,51 @@ const pages = {
   },
   o09(state) {
     const fig = planFigures(state)
+    const hint = cutHint(state) || 'Left is yours to spend. Change any part any time.'
+    const late = lateLenders(state).length > 0
     return shell({
       stepper: 'Your plan',
-      body: `<h1>Your plan for this month</h1>
+      body: `<div class="planfit"><h1>Your plan for this month</h1>
         <div class="rows">
-          <div class="row"><span class="k">Home</span><span class="v">${hk(fig.home)}</span></div>
+          <div class="row"><span class="k">Home${homeSplitHtml(state)}</span><span class="v">${hk(fig.home)}</span></div>
           <div class="row"><span class="k">Bills</span><span class="v">${hk(fig.bills)}</span></div>
           <div class="row"><span class="k">You</span><span class="v">${hk(fig.you)}</span></div>
           <div class="row total"><span class="k">Left</span><span class="v" data-left="${fig.left}">${hk(fig.left)}</span></div>
         </div>
-        <p class="hint">Left is yours to spend. Change any part any time.</p>`,
-      actions: `${primary('This is my plan', 'plan-yes')}${quiet('Change a part', 'change-part')}`,
+        ${stillLateLine(state)}
+        ${catchUpLine(state)}
+        <p class="hint">${esc(hint)}</p>
+        ${fixDoorHtml(state)}</div>`,
+      actions: `${primary('This is my plan', 'plan-yes')}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${late ? quiet('Check a loan’s papers', 'papers') : ''}`,
     })
   },
   o10(state) {
     const fig = planFigures(state)
     const more = fig.out - fig.pay
+    const lates = lateLenders(state)
+    const factLate = lates.length
+      ? lates.map((lender) => `${esc(lender.name)} is late by ${hk(lender.overdueAmount)}.`).join(' ')
+      : 'Nothing is late.'
+    const afterCut = !!state.fix?.lastCutAmount
+    const actions = afterCut
+      ? `${primary('Done', 'plan-yes')}${quiet('Cut again', 'fix-fit')}${quiet('Change a part', 'change-part')}`
+      : `${quiet('Keep for now', 'plan-yes')}${quiet('Check a loan’s papers', 'papers')}${quiet('Change a part', 'change-part')}`
     return shell({
-      stepper: 'Your plan',
-      body: `<h1>Your plan for this month</h1>
+      stepper: afterCut ? 'Your plan' : 'Fix',
+      body: `<h1>${afterCut ? 'Your plan for this month' : 'What you can do'}</h1>
+        <div class="fact"><b>This month</b>${hk(more)} more than you get. ${factLate}${dueFact(state) ? ` ${dueFact(state)}.` : ''}</div>
         <div class="rows">
-          <div class="row"><span class="k">Home</span><span class="v">${hk(fig.home)}</span></div>
+          <div class="row"><span class="k">Home${homeSplitHtml(state)}</span><span class="v">${hk(fig.home)}</span></div>
           <div class="row"><span class="k">Bills</span><span class="v">${hk(fig.bills)}</span></div>
           <div class="row"><span class="k">You</span><span class="v">${hk(fig.you)}</span></div>
           <div class="row total"><span class="k">Your pay</span><span class="v">${hk(fig.pay)}</span></div>
         </div>
-        <p class="note">This is ${hk(more)} more than you get. Change any part.</p>`,
-      actions: `${primary('Change a part', 'change-part')}${quiet('Keep it for now', 'plan-yes')}`,
+        <p class="note">This is ${hk(more)} more than you get.</p>
+        ${stillLateLine(state)}
+        ${catchUpLine(state)}
+        ${cutHint(state) ? `<p class="hint">${esc(cutHint(state))}</p>` : ''}
+        ${fixDoorHtml(state)}`,
+      actions,
     })
   },
   parts() {
@@ -440,12 +537,20 @@ const pages = {
   o12(state) {
     return shell({
       stepper: 'Lessons',
-      body: `<h1>Do it yourself</h1>
-        <p class="body">Short steps. You do them in your own app.</p>
+      body: `<h1>Manage your own money</h1>
+        <p class="body">Not send it out and hope.</p>
+        <ol class="tips">
+          <li><span class="num">1</span><span>Open your own GCash</span></li>
+          <li><span class="num">2</span><span>Send money to you</span></li>
+          <li><span class="num">3</span><span>Pay a bill (e.g. social security)</span></li>
+          <li><span class="num">4</span><span>Then send to family</span></li>
+        </ol>
+        <p class="hint">Make sure the money is going where it needs to go.</p>
         <div class="doors">
-          <button type="button" class="door" data-act="open-app" data-app="ahk"><span class="t">AlipayHK</span><span class="s">Pay a bill · Send money home · Save</span></button>
-          <button type="button" class="door" data-act="open-app" data-app="gcash"><span class="t">GCash</span><span class="s">See money come in · Pay a bill · Save</span></button>
+          <button type="button" class="door" data-act="open-app" data-app="ahk"><span class="t">AlipayHK</span><span class="s">Pay a bill · Send to your GCash · Keep your part</span></button>
+          <button type="button" class="door" data-act="open-app" data-app="gcash"><span class="t">GCash</span><span class="s">Open yours · Send to you · Pay a bill · Then family</span></button>
         </div>
+        <p class="hint"><button type="button" class="textlink" data-act="send-home">What you send home</button></p>
         ${state.planSet ? '<p class="hint">✓ Your plan is done.</p>' : ''}`,
     })
   },
@@ -455,9 +560,12 @@ const pages = {
     const chips = (step.chips || []).map((chip, index) => `${index ? '<span class="arrow" aria-hidden="true">›</span>' : ''}<span class="chip">${esc(chip)}</span>`).join('')
     const mine = step.mine === 'home'
       ? `<p class="mine">Your plan: <b>${hk(state.home || 0)}</b> home</p>`
-      : step.mine === 'you'
-        ? `<p class="mine">Your plan: <b>${hk(state.you || 0)}</b> for you</p>`
-        : ''
+      : step.mine === 'family'
+        ? `<p class="mine">Your plan: the home amount you chose.</p>`
+        : step.mine === 'you'
+          ? `<p class="mine">Your plan: <b>${hk(state.you || 0)}</b> for you</p>`
+          : ''
+    const note = step.note ? `<p class="mine">${esc(step.note)}</p>` : ''
     const unverified = lesson.unverified ? '<p class="fine unverified">Unverified, check in app.</p>' : ''
     const last = route.step + 1 >= lesson.steps.length
     return shell({
@@ -466,7 +574,7 @@ const pages = {
         <h1>${esc(step.h1)}</h1>
         ${chips ? `<div class="path">${chips}</div>` : ''}
         <p class="body">${step.html ? step.body : esc(step.body)}</p>
-        ${mine}${unverified}`,
+        ${mine}${note}${unverified}`,
       actions: `${primary(last ? 'Done' : 'Done, next step', 'lesson-next')}${quiet('I’m stuck', 'stuck')}`,
     })
   },
@@ -477,7 +585,8 @@ const pages = {
         <ol class="tips">
           <li><span class="num">1</span><span>Update the app and open it again.</span></li>
           <li><span class="num">2</span><span>Check your account is verified in the app.</span></li>
-          <li><span class="num">3</span><span>Open the app’s own Help.</span></li>
+          <li><span class="num">3</span><span>For a remittance with a code: Cash In, then Global Banks and Partners.</span></li>
+          <li><span class="num">4</span><span>Open the app’s own Help.</span></li>
         </ol>`,
       actions: `${primary('Back to the step', 'back')}${quiet('Skip this step', 'skip-step')}`,
     })
@@ -528,6 +637,17 @@ const pages = {
     })
   },
   o26(state) {
+    if (state.fund?.fromFix || !state.fund?.by) {
+      return shell({
+        stepper: 'Emergencies',
+        body: `<h1>Money for emergencies</h1>
+          <div class="lifecard"><div class="h">Money for emergencies</div>
+            <div class="k">${hk(state.fund.monthly)} a month</div>
+            <div class="k">No target yet. You can set one later.</div>
+          </div>`,
+        actions: `${primary('Done', 'life')}${quiet('Change it', 'fund-edit')}`,
+      })
+    }
     const fund = projectFund(state.fund, new Date())
     const width = fund.amount ? Math.min(100, Math.round((fund.nowSaved / fund.amount) * 100)) : 0
     const math = `${fund.months} months × ${hk(fund.monthly)} = ${hk(fund.could)}.`
@@ -643,9 +763,11 @@ const pages = {
     const fundReach = fundProj && !fundProj.reaches && fundProj.reach
       ? `<div class="k">You reach this in ${esc(monthShort(fundProj.reach))}.</div>`
       : ''
-    const fund = state.fund
-      ? `<button type="button" class="lifecard" data-act="fund"><div class="h">Emergencies<span>${hk(0)} of ${hk(state.fund.amount)}</span></div><div class="bar" aria-hidden="true"><i style="width:0%"></i></div>${fundReach}</button>`
-      : `<button type="button" class="lifecard" data-act="fund"><div class="h">Emergencies</div><div class="k">How much do you want for emergencies?</div></button>`
+    const fund = !state.fund
+      ? `<button type="button" class="lifecard" data-act="fund"><div class="h">Emergencies</div><div class="k">How much do you want for emergencies?</div></button>`
+      : state.fund.fromFix || !state.fund.by
+        ? `<button type="button" class="lifecard" data-act="fund"><div class="h">Money for emergencies</div><div class="k">${hk(state.fund.monthly)} a month</div><div class="k">No target yet. You can set one later.</div></button>`
+        : `<button type="button" class="lifecard" data-act="fund"><div class="h">Emergencies<span>${hk(0)} of ${hk(state.fund.amount)}</span></div><div class="bar" aria-hidden="true"><i style="width:0%"></i></div>${fundReach}</button>`
     const goals = state.goals.length
       ? state.goals.map((goal, index) => {
         const proj = projectGoal(state, goal, new Date())
@@ -664,6 +786,159 @@ const pages = {
           ${goals}
         </div>`,
       actions: quiet('Erase my data', 'erase'),
+    })
+  },
+  f01(state) {
+    const fig = planFigures(state)
+    const gap = roundCents(Math.max(0, fig.out - fig.pay))
+    const part = (key, title, amount) => `<button type="button" class="door" data-act="fit-part" data-part="${key}"><span class="t">${title}</span><span class="s">Now ${hk(amount)}</span></button>`
+    return shell({
+      stepper: 'Make it fit · 1 of 2',
+      body: `<p class="eyebrow">Make this month fit</p><h1>Which part do you want to shrink?</h1>
+        <div class="fact">You need ${hk(gap)} less to fit.</div>
+        <div class="doors">
+          ${part('home', 'Home', fig.home)}
+          ${part('bills', 'Bills', fig.bills)}
+          ${part('you', 'You', fig.you)}
+        </div>`,
+    })
+  },
+  f02(state) {
+    const part = state.fix?.part || 'home'
+    const title = part === 'you' ? 'You' : part === 'bills' ? 'Bills' : 'Home'
+    const result = cutResult(state, part, state.fix?.cutAmount || 0)
+    return shell({
+      stepper: 'Make it fit · 2 of 2',
+      body: `<p class="eyebrow">${title} · Make this month fit</p><h1>Cut by how much?</h1>
+        ${moneyField('fix.cutAmount', state.fix?.cutAmount || '', 'Cut')}
+        <p class="gap" data-live="cut-gap">Gap left after this cut: <b>${hk(result.gap)}</b></p>`,
+      actions: primary('Update my plan', 'next'),
+    })
+  },
+  f04(state) {
+    const doors = (state.lenders || []).map((lender, index) => {
+      const sub = lender.overdue && money(lender.overdueAmount) > 0
+        ? `Late by ${hk(lender.overdueAmount)}${lender.nextDate ? ` · next ${esc(shortDate(lender.nextDate))}` : ''}`
+        : 'Nothing late'
+      return `<button type="button" class="door" data-act="catch-pick" data-index="${index}"><span class="t">${esc(lender.name)}</span><span class="s">${sub}</span></button>`
+    }).join('')
+    return shell({
+      stepper: 'Catch up · 1 of 2',
+      body: `<p class="eyebrow">Catch up this one</p><h1>Who do you want to catch up?</h1><div class="doors">${doors}</div>`,
+      actions: quiet('Check this loan’s papers', 'papers'),
+    })
+  },
+  f05(state) {
+    const lender = state.lenders[state.fix?.catchIndex] || { name: '', overdueAmount: 0 }
+    const late = lender.overdue ? money(lender.overdueAmount) : 0
+    return shell({
+      stepper: 'Catch up · 2 of 2',
+      body: `<p class="eyebrow">${esc(lender.name)} · Catch up</p><h1>How much can you pay this month?</h1>
+        ${moneyField('fix.catchAmount', state.fix?.catchAmount || '', 'Catch up amount')}
+        <p class="hint">Late by ${hk(late)}. You can pay up to that.</p>`,
+      actions: primary('Update my plan', 'next'),
+    })
+  },
+  f06d(state) {
+    const lender = state.lenders[state.fix?.markIndex] || { name: '', overdueAmount: 0 }
+    const late = lender.overdue ? money(lender.overdueAmount) : 0
+    return shell({
+      stepper: 'Catch up',
+      body: `<p class="eyebrow">${esc(lender.name)} · Late</p><h1>How much of the late amount did you pay?</h1>
+        ${moneyField('fix.markAmount', state.fix?.markAmount || '', 'Paid')}
+        <p class="hint">Late was ${hk(late)}. You can mark up to that.</p>`,
+      actions: `${primary('Mark as paid', 'next')}${quiet('Not yet', 'mark-not')}`,
+    })
+  },
+  f06a(state) {
+    const doors = (state.lenders || []).map((lender, index) => {
+      const often = lender.freq === 'monthly' ? 'a month' : freqWord(lender.freq)
+      return `<button type="button" class="door" data-act="fund-pick" data-index="${index}"><span class="t">${esc(lender.name)}</span><span class="s">Due ${hk(lender.due)} ${often}</span></button>`
+    }).join('')
+    return shell({
+      stepper: 'Fund · 1 of 2',
+      body: `<p class="eyebrow">Start the fund now</p><h1>Which loan do you want to pay a bit less on?</h1><div class="doors">${doors}</div>`,
+      actions: quiet('Check this loan’s papers', 'papers'),
+    })
+  },
+  f06b(state) {
+    const lender = state.lenders[state.fix?.fundIndex] || { name: '', due: 0, freq: 'monthly' }
+    const reduced = reduceDue(lender, state.fix?.fundLess || 0)
+    const often = lender.freq === 'monthly' ? 'a month' : freqWord(lender.freq)
+    return shell({
+      stepper: 'Fund · 2 of 2',
+      body: `<p class="eyebrow">${esc(lender.name)} · Start the fund</p><h1>How much less will you pay on ${esc(lender.name)}?</h1>
+        ${moneyField('fix.fundLess', state.fix?.fundLess || '', 'Less')}
+        <p class="gap" data-live="fund-less">${esc(lender.name)} due becomes <b>${hk(reduced.due)}</b> ${often}.<br>You put <b>${hk(reduced.applied)}</b> a month aside for emergencies.</p>`,
+      actions: primary('Start my fund', 'next'),
+    })
+  },
+  f07(state) {
+    const dues = dueThisWeek(state.lenders)
+    const dueRows = dues.length
+      ? dues.map((lender) => `<div class="row"><span>Due this week</span><span class="v">${esc(lender.name)} · ${esc(shortDate(lender.nextDate))} · ${hk(lender.due)}</span></div>`).join('')
+      : '<div class="row"><span>Due this week</span><span class="v">Nothing due this week</span></div>'
+    const lates = lateLenders(state)
+    const late = lates.length
+      ? lates.map((lender, index) => `<button type="button" class="chip amber" data-act="mark-paid" data-index="${state.lenders.indexOf(lender)}">${esc(lender.name)} ${hk(lender.overdueAmount)}</button>`).join('')
+      : '<span class="v">Nothing late</span>'
+    const action = state.fix?.lastAction || 'You have not picked one yet.'
+    return shell({
+      stepper: 'Day off',
+      body: `<h1>For your day off</h1>
+        <div class="week">${dueRows}<div class="row"><span>Late</span><span class="v">${late}</span></div></div>
+        <div class="actionpick"><b>Your action</b>${esc(action)}</div>
+        <div class="saved">${LOCK}<span>Saved on this phone. Pick it up on your next day off.</span></div>`,
+      actions: primary('Done', 'dayoff-done'),
+    })
+  },
+  papers(state, route) {
+    const lender = state.lenders[state.fix?.papersIndex] || { name: 'this loan' }
+    const step = route.step || 0
+    const question = PAPER_QUESTIONS[step] || PAPER_QUESTIONS[0]
+    const choice = (value, label) => `<button type="button" class="door choice" data-act="paper-answer" data-value="${value}"><span class="t">${label}</span></button>`
+    return shell({
+      stepper: `Check · ${step + 1} of 5`,
+      body: `<p class="eyebrow">Check a loan · ${esc(lender.name)}</p><h1>${esc(question.h1)}</h1>
+        ${question.body ? `<p class="body">${esc(question.body)}</p>` : ''}
+        <div class="doors">${choice('yes', 'Yes')}${choice('no', 'No')}${choice('unsure', 'Not sure')}</div>`,
+    })
+  },
+  'papers-who'(state) {
+    const doors = (state.lenders || []).map((lender, index) => `<button type="button" class="door" data-act="papers-pick" data-index="${index}"><span class="t">${esc(lender.name)}</span></button>`).join('')
+    return shell({
+      stepper: 'Check',
+      body: `<h1>Which loan’s papers?</h1><div class="doors">${doors || '<p class="body">Add what you owe first.</p>'}</div>`,
+    })
+  },
+  'papers-sum'(state) {
+    const lender = state.lenders[state.fix?.papersIndex] || { name: 'This loan' }
+    const summary = contractSummary(state.contract)
+    const chips = (summary.warn ? summary.amber : summary.clear)
+      .map((label) => `<span class="chip ${summary.warn ? 'amber' : 'ok'}">${esc(label)}</span>`).join('')
+    const lawyer = summary.warn
+      ? `<div class="stopbox"><b>We are not lawyers.</b>Offshore does not decide if a loan is allowed. There is no next step here until someone who helps with money is named.<div class="helperslot"><b>Someone who can help</b>A helper will be named here. Not named yet.</div></div>`
+      : '<p class="hint">Saved on this phone when you tap save.</p>'
+    return shell({
+      stepper: 'Check',
+      body: `<h1>Facts for your pack</h1><div class="fact"><b>${esc(lender.name)}</b>${chips}</div>${lawyer}`,
+      actions: primary('Save the facts', 'papers-save'),
+    })
+  },
+  send(state) {
+    const split = homeSplit(state.home, state.sendHome?.app || 0)
+    const note = split.ok
+      ? `<p class="hint" data-live="send-note">Cash only ${hk(split.cash)}. Any merchant the app lists.</p>`
+      : '<p class="note" data-live="send-note">The app part cannot be more than the total. You can change it.</p>'
+    return shell({
+      stepper: 'Home',
+      body: `<h1>What you send home</h1>
+        <p class="flabel">Total home</p>
+        ${moneyField('home', state.home, 'Total home')}
+        <p class="flabel">Pay on the app</p>
+        ${moneyField('sendHome.app', state.sendHome?.app || '', 'Pay on the app')}
+        ${note}`,
+      actions: `${primary('Continue', 'next')}${quiet('Not now', 'back')}`,
     })
   },
 }

@@ -7,16 +7,24 @@ import { firstLesson, lessonById, nextLessonId } from './lessons.js'
 import {
   billsParts,
   clampCatchUp,
+  cutResult,
+  formatAmount,
+  freqWord,
   hk,
+  homeSplit,
   isPastDate,
   lenderFromDraft,
   longDate,
+  markPaidAmount,
   MAX_RATE,
   money,
   monthLong,
   noteOverdue,
   overdueTotal,
+  passedDueIsLate,
   planFigures,
+  reduceDue,
+  roundCents,
   sanitizeAmount,
   scoreOf,
   tooBigMoney,
@@ -26,6 +34,7 @@ import {
   blankDraft,
   draftFromLender,
   eraseOffshore,
+  freshContract,
   freshState,
   loadState,
   saveState,
@@ -162,7 +171,16 @@ function canAdvance() {
     case 'o02c': return !!draft && draft.left !== '' && !tooBigMoney(draft.left)
     case 'o02d': return !!draft && draft.interest !== '' && money(draft.interest) <= MAX_RATE
     case 'o02e': return !!draft && draft.due !== '' && !tooBigMoney(draft.due)
-    case 'o02f': return !!draft && draft.nextDate !== '' && !isPastDate(draft.nextDate)
+    case 'o02f': return !!draft && draft.nextDate !== ''
+    case 'f02': return state.fix.cutAmount !== '' && !tooBigMoney(state.fix.cutAmount)
+    case 'f05': return state.fix.catchAmount !== '' && !tooBigMoney(state.fix.catchAmount)
+    case 'f06d': return state.fix.markAmount !== '' && !tooBigMoney(state.fix.markAmount)
+    case 'f06b': {
+      const lender = state.lenders[state.fix.fundIndex]
+      const less = money(state.fix.fundLess)
+      return !!lender && less > 0 && less <= money(lender.due) + 0.001 && !tooBigMoney(state.fix.fundLess)
+    }
+    case 'send': return state.home !== '' && state.sendHome.app !== '' && !tooBigMoney(state.home) && !tooBigMoney(state.sendHome.app)
     case 'o02g2': return !!draft && draft.overdueAmount !== '' && !tooBigMoney(draft.overdueAmount)
     case 'o02g3': return !!draft && draft.overdueSince !== ''
     case 'o06': return state.home !== '' && !tooBigMoney(state.home)
@@ -188,11 +206,16 @@ function refreshGates() {
   }
   if (route().screen === 'o02f' && isPastDate(state.draft?.nextDate)) {
     const echo = screenEl.querySelector('[data-echo="date"]')
-    if (echo) echo.textContent = 'That date has passed. Pick a later date.'
-    blocked = true
+    if (echo) echo.textContent = 'That date has passed. This payment is late.'
   }
   const button = screenEl.querySelector('[data-act="next"]')
   if (button) button.disabled = blocked
+}
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch]))
 }
 
 function updateLive() {
@@ -201,6 +224,132 @@ function updateLive() {
   if (total) total.textContent = `Bills part: ${hk(bills.total)}`
   const includes = document.querySelector('[data-live="bills-includes"]')
   if (includes) includes.textContent = `Includes ${hk(bills.owe)} for what you owe`
+  const gap = document.querySelector('[data-live="cut-gap"]')
+  if (gap) {
+    const result = cutResult(state, state.fix?.part, state.fix?.cutAmount || 0)
+    gap.innerHTML = `Gap left after this cut: <b>${hk(result.gap)}</b>`
+  }
+  const fundLess = document.querySelector('[data-live="fund-less"]')
+  if (fundLess) {
+    const lender = state.lenders[state.fix?.fundIndex] || { name: '', due: 0, freq: 'monthly' }
+    const reduced = reduceDue(lender, state.fix?.fundLess || 0)
+    const often = lender.freq === 'monthly' ? 'a month' : freqWord(lender.freq)
+    fundLess.innerHTML = `${esc(lender.name)} due becomes <b>${hk(reduced.due)}</b> ${often}.<br>You put <b>${hk(reduced.applied)}</b> a month aside for emergencies.`
+  }
+  const sendNote = document.querySelector('[data-live="send-note"]')
+  if (sendNote) {
+    const split = homeSplit(state.home, state.sendHome?.app || 0)
+    if (split.ok) {
+      sendNote.className = 'hint'
+      sendNote.textContent = `Cash only ${hk(split.cash)}. Any merchant the app lists.`
+    } else {
+      sendNote.className = 'note'
+      sendNote.textContent = 'The app part cannot be more than the total. You can change it.'
+    }
+  }
+}
+
+function saveCut() {
+  const part = state.fix.part || 'home'
+  const result = cutResult(state, part, state.fix.cutAmount)
+  const applied = result.applied
+  if (part === 'home') {
+    state.home = formatAmount(Math.max(0, money(state.home) - applied))
+  } else if (part === 'you') {
+    state.you = formatAmount(Math.max(0, money(state.you) - applied))
+  } else {
+    const catchNow = money(state.catchUp)
+    const fromCatch = Math.min(applied, catchNow)
+    state.catchUp = formatAmount(catchNow - fromCatch)
+    state.catchUpEdited = true
+    state.otherBills = formatAmount(Math.max(0, money(state.otherBills) - roundCents(applied - fromCatch)))
+  }
+  state.fix.lastCutPart = part
+  state.fix.lastCutAmount = formatAmount(applied)
+  const label = part === 'you' ? 'You' : part === 'bills' ? 'Bills' : 'Home'
+  state.fix.lastAction = `Cut ${label} by ${hk(applied)}`
+  saveState(state)
+  go(planScreen())
+}
+
+function saveCatch() {
+  const index = state.fix.catchIndex
+  const lender = state.lenders[index]
+  if (!lender) return
+  const late = lender.overdue ? money(lender.overdueAmount) : 0
+  const applied = roundCents(Math.min(money(state.fix.catchAmount), late))
+  state.catchUp = formatAmount(applied)
+  state.catchUpEdited = true
+  state.fix.lastAction = `Catch up ${lender.name} · ${hk(applied)} this month`
+  saveState(state)
+  go(planScreen())
+}
+
+function saveFundLess() {
+  const lender = state.lenders[state.fix.fundIndex]
+  if (!lender) return
+  const reduced = reduceDue(lender, state.fix.fundLess)
+  if (reduced.applied <= 0) return
+  lender.due = reduced.due
+  state.fund = { amount: '', by: '', monthly: reduced.monthly, fromFix: true }
+  state.fix.lastAction = `Pay ${hk(reduced.applied)} less on ${lender.name}`
+  saveState(state)
+  go(planScreen())
+}
+
+function saveMark() {
+  const lender = state.lenders[state.fix.markIndex]
+  if (!lender) return
+  const result = markPaidAmount(lender, state.fix.markAmount)
+  if (result.cleared) {
+    lender.overdue = false
+    lender.overdueAmount = ''
+  } else {
+    lender.overdue = true
+    lender.overdueAmount = formatAmount(result.left)
+  }
+  state.fix.markAmount = ''
+  saveState(state)
+  go(planScreen())
+}
+
+function saveSend() {
+  const split = homeSplit(state.home, state.sendHome.app)
+  if (!split.ok) {
+    state.sendHome.saved = false
+    state.sendHome.blocked = true
+    return paintOnly()
+  }
+  state.sendHome.saved = true
+  state.sendHome.blocked = false
+  return back()
+}
+
+function openPapers() {
+  if (state.lenders.length === 1) {
+    state.fix.papersIndex = 0
+    state.contract = freshContract()
+    return go('papers', { step: 0 })
+  }
+  return go('papers-who')
+}
+
+function answerPaper(value) {
+  const keys = ['writing', 'rate', 'licence', 'hold', 'take']
+  const step = route().step || 0
+  state.contract[keys[step]] = value
+  if (step < 4) return go('papers', { step: step + 1 })
+  return go('papers-sum')
+}
+
+function savePapers() {
+  const lender = state.lenders[state.fix.papersIndex]
+  if (lender) {
+    lender.papers = { ...state.contract }
+    state.fix.lastAction = `Checked ${lender.name}\u2019s papers`
+  }
+  saveState(state)
+  go('f07')
 }
 
 function commitLender() {
@@ -259,7 +408,18 @@ function next() {
     case 'o02c': return go('o02d')
     case 'o02d': return go('o02e')
     case 'o02e': return go('o02f')
-    case 'o02f': return go('o02g')
+    case 'o02f':
+      if (passedDueIsLate(state.draft.nextDate)) {
+        state.draft.overdue = true
+        if (!state.draft.overdueSince) state.draft.overdueSince = state.draft.nextDate
+        return go('o02g2')
+      }
+      return go('o02g')
+    case 'f02': return saveCut()
+    case 'f05': return saveCatch()
+    case 'f06d': return saveMark()
+    case 'f06b': return saveFundLess()
+    case 'send': return saveSend()
     case 'o02g2': return go('o02g3')
     case 'o02g3': return commitLender()
     case 'o06':
@@ -437,7 +597,44 @@ function onClick(event) {
   if (act === 'to-plan' || act === 'to-home') return act === 'to-plan' ? go('o05') : go('o06')
   if (act === 'to-summary') return go('o02h')
   if (act === 'change-part') return go('parts')
-  if (act === 'plan-yes') return finishPlan()
+  if (act === 'plan-yes') {
+    if (state.fix?.lastAction) return go('f07')
+    return finishPlan()
+  }
+  if (act === 'dayoff-done') return finishPlan()
+  if (act === 'fix-fit') return go('f01')
+  if (act === 'fit-part') {
+    state.fix.part = el.dataset.part
+    state.fix.cutAmount = ''
+    return go('f02')
+  }
+  if (act === 'fix-catch') return go('f04')
+  if (act === 'catch-pick') {
+    state.fix.catchIndex = Number(el.dataset.index)
+    state.fix.catchAmount = ''
+    return go('f05')
+  }
+  if (act === 'fix-fund') return go('f06a')
+  if (act === 'fund-pick') {
+    state.fix.fundIndex = Number(el.dataset.index)
+    state.fix.fundLess = ''
+    return go('f06b')
+  }
+  if (act === 'mark-paid') {
+    state.fix.markIndex = Number(el.dataset.index)
+    state.fix.markAmount = ''
+    return go('f06d')
+  }
+  if (act === 'mark-not') return back()
+  if (act === 'papers') return openPapers()
+  if (act === 'papers-pick') {
+    state.fix.papersIndex = Number(el.dataset.index)
+    state.contract = freshContract()
+    return go('papers', { step: 0 })
+  }
+  if (act === 'paper-answer') return answerPaper(el.dataset.value)
+  if (act === 'papers-save') return savePapers()
+  if (act === 'send-home') return go('send')
   if (act === 'lessons') return go('o12')
   if (act === 'life') return go('o35')
   if (act === 'month') return go('o11')
@@ -501,6 +698,37 @@ function onInput(event) {
       value = state.catchUp
       input.value = value
     }
+  }
+  if (input.dataset.field === 'fix.catchAmount') {
+    const lender = state.lenders[state.fix.catchIndex]
+    const cap = lender?.overdue ? money(lender.overdueAmount) : 0
+    if (money(value) > cap) {
+      state.fix.catchAmount = formatCatch(cap)
+      value = state.fix.catchAmount
+      input.value = value
+    }
+  }
+  if (input.dataset.field === 'fix.markAmount') {
+    const lender = state.lenders[state.fix.markIndex]
+    const cap = lender?.overdue ? money(lender.overdueAmount) : 0
+    if (money(value) > cap) {
+      state.fix.markAmount = formatCatch(cap)
+      value = state.fix.markAmount
+      input.value = value
+    }
+  }
+  if (input.dataset.field === 'fix.fundLess') {
+    const lender = state.lenders[state.fix.fundIndex]
+    const cap = money(lender?.due)
+    if (money(value) > cap) {
+      state.fix.fundLess = formatCatch(cap)
+      value = state.fix.fundLess
+      input.value = value
+    }
+  }
+  if (input.dataset.field === 'home' || input.dataset.field === 'sendHome.app') {
+    state.sendHome.saved = false
+    state.sendHome.blocked = state.sendHome.app !== '' && !homeSplit(state.home, state.sendHome.app).ok
   }
   input.closest('.field')?.classList.toggle('filled', value !== '')
   saveState(state)
