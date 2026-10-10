@@ -470,15 +470,15 @@ const pages = {
   o05(state) {
     return shell({
       stepper: 'Your plan',
-      body: `<h1 class="presplit">Your pay, your plan</h1>
-        <p class="body presplit">We only use what you enter. Loan dues stay on Card.</p>
+      body: `<h1>Your pay, your plan</h1>
+        <p class="body">Split what you get into three parts. We only use what you enter.</p>
         ${enteredFact(state)}
-        <div class="parts preparts">
+        <div class="parts">
           <div class="part"><div class="num">1</div><div><div class="t">Home</div><div class="s">What you send home</div></div></div>
           <div class="part"><div class="num">2</div><div><div class="t">Bills</div><div class="s">Bills and debt you pay</div></div></div>
           <div class="part"><div class="num">3</div><div><div class="t">You</div><div class="s">What you keep for yourself</div></div></div>
         </div>`,
-      actions: `${packPrimary()}${quiet('Start my plan', 'to-home')}${quiet('Keep for now', 'back')}`,
+      actions: `${primary('Start my plan', 'to-home')}${quiet('Keep for now', 'back')}`,
     })
   },
   o06(state) {
@@ -1023,7 +1023,7 @@ const pages = {
   },
   ft14(state) {
     const started = !!state.sundayPack?.started
-    const door = (act, title, sub) => `<button type="button" class="door" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    const door = (act, title, sub, loud = false) => `<button type="button" class="door${loud ? ' door-loud' : ''}" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
     return shell({
       stepper: 'Start',
       body: `<span class="followchip">Welcome back</span>
@@ -1031,7 +1031,7 @@ const pages = {
         <p class="body">Your plan is still here. Open what you need.</p>
         <div class="placepick">
           ${door('resume-plan', 'Your plan', 'Home · Bills · You · Left')}
-          ${door('sunday-pack', 'Sunday Pack', started ? 'You started this · continue' : 'For your day off')}
+          ${door('sunday-pack', 'Sunday Pack', started ? 'You started this · continue' : 'For your day off', true)}
           ${door('month', 'Today', 'Your month · what you owe')}
         </div>`,
     })

@@ -376,50 +376,14 @@ try {
   if (!text.includes('You pay HK$760 a month.')) throw new Error(text)
   if (!text.includes('HK$260')) throw new Error(text)
   await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('short path did not stop on your pay, your plan')
   text = await bodyText()
-  if (!text.includes('Your pay, your plan') || !text.includes('We only use what you enter. Loan dues stay on Card.')) {
+  if (!text.includes('Your pay, your plan') || !text.includes('Split what you get into three parts. We only use what you enter.')) {
     throw new Error(`plan intro copy missing:\n${text}`)
   }
   if (!text.includes('Start my plan') || !text.includes('Keep for now')) {
     throw new Error(`plan intro actions missing:\n${text}`)
   }
   if (/spent|HK\$1,400 left|what are you doing/i.test(text)) throw new Error(`plan intro invented spend:\n${text}`)
-  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  const packLoud = await page.$eval('[data-act="sunday-pack"]', (el) => ({
-    primary: el.classList.contains('primary'),
-    quiet: el.classList.contains('quiet'),
-  }))
-  if (!packLoud.primary || packLoud.quiet) throw new Error(`Sunday Pack is not the clay primary on the plan intro: ${JSON.stringify(packLoud)}`)
-  const startQuiet = await page.$eval('[data-act="to-home"]', (el) => el.classList.contains('quiet') && !el.classList.contains('primary'))
-  if (!startQuiet) throw new Error('Start my plan is not the quiet control under Sunday Pack')
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
-  await assertShown('sunday-pack')
-  const introFits = await page.evaluate(() => {
-    const content = document.querySelector('.content')
-    const pack = document.querySelector('[data-act="sunday-pack"]')
-    const rect = pack.getBoundingClientRect()
-    return {
-      scrolled: content.scrollTop,
-      overflows: content.scrollHeight > content.clientHeight + 8,
-      packTop: rect.top,
-      packBottom: rect.bottom,
-      view: window.innerHeight,
-    }
-  })
-  if (introFits.scrolled || introFits.overflows || introFits.packBottom > introFits.view) {
-    throw new Error(`short-path Pack needs a scroll: ${JSON.stringify(introFits)}`)
-  }
-  await shot('o05-sunday-pack.png')
-  await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-  await tapAct('sunday-pack')
-  text = await bodyText()
-  if (!text.includes('For your day off')) throw new Error(`short-path Sunday Pack did not open:\n${text}`)
-  await clickSel('[data-act="back"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('Sunday Pack back left your pay, your plan')
   await page.setViewport({ width: 390, height: 664, deviceScaleFactor: 1 })
   const fitted = await page.evaluate(() => {
     const button = document.querySelector('.actions .btn')
@@ -466,6 +430,9 @@ try {
     if (!(await page.$('[data-act="sunday-pack"]')) || !(await page.$('[data-act="lessons"]'))) {
       throw new Error('warm entry hid Sunday Pack or lessons')
     }
+    const warmPack = await page.$eval('[data-act="sunday-pack"]', (el) => el.classList.contains('primary'))
+    const warmDoor = await page.$eval('[data-act="see-fix"]', (el) => el.classList.contains('packdoor'))
+    if (!warmPack || !warmDoor) throw new Error('warm entry Pack is not the clay primary above the full-width door')
     await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
     await assertShown('sunday-pack')
     await assertShown('lessons')
@@ -496,6 +463,8 @@ try {
     throw new Error(`leftover line missing:\n${text}`)
   }
   if (!text.includes('Your plan for this month')) throw new Error(`plan title missing:\n${text}`)
+  const planDoor = await page.$eval('[data-act="sunday-pack"]', (el) => el.classList.contains('packdoor'))
+  if (!planDoor) throw new Error('plan Sunday Pack is not the full-width door')
   await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
   await assertShown('sunday-pack')
   await shot('plan-sunday-pack.png')
@@ -836,6 +805,10 @@ try {
   }
   if (!text.includes('See what you can do') || !text.includes('Sunday Pack') || !text.includes('Lessons') || !text.includes('Save the facts')) {
     throw new Error(`papers teach doors missing:\n${text}`)
+  }
+  const loudPair = await page.$$eval('.teachdoors .door.door-loud', (els) => els.map((el) => el.dataset.act))
+  if (loudPair[0] !== 'sunday-pack' || loudPair[1] !== 'see-fix') {
+    throw new Error(`papers loud doors are not Pack then See what you can do: ${loudPair.join(', ')}`)
   }
   await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
   await assertShown('sunday-pack')
