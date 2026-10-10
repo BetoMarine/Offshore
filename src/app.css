@@ -403,3 +403,11 @@ button.packdoor::after {
   color: var(--os-ink);
   font-weight: 700;
 }
+h1.presplit { margin-bottom: 10px; }
+.body.presplit { margin-bottom: 14px; }
+.body.presplit + .fact { margin-bottom: 8px; padding: 8px 12px; }
+.parts.preparts { gap: 8px; margin-top: 8px; }
+.parts.preparts .part { padding: 10px 14px; gap: 12px; }
+.parts.preparts .part .t { font-size: 20px; }
+.parts.preparts .part .s { font-size: 17px; }
+.parts.preparts .num { width: 40px; height: 40px; font-size: 20px; }

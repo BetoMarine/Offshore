@@ -470,15 +470,15 @@ const pages = {
   o05(state) {
     return shell({
       stepper: 'Your plan',
-      body: `<h1>Your pay, your plan</h1>
-        <p class="body">Split what you get into three parts. We only use what you enter.</p>
+      body: `<h1 class="presplit">Your pay, your plan</h1>
+        <p class="body presplit">We only use what you enter. Loan dues stay on Card.</p>
         ${enteredFact(state)}
-        <div class="parts">
+        <div class="parts preparts">
           <div class="part"><div class="num">1</div><div><div class="t">Home</div><div class="s">What you send home</div></div></div>
           <div class="part"><div class="num">2</div><div><div class="t">Bills</div><div class="s">Bills and debt you pay</div></div></div>
           <div class="part"><div class="num">3</div><div><div class="t">You</div><div class="s">What you keep for yourself</div></div></div>
         </div>`,
-      actions: `${primary('Start my plan', 'to-home')}${quiet('Keep for now', 'back')}`,
+      actions: `${packPrimary()}${quiet('Start my plan', 'to-home')}${quiet('Keep for now', 'back')}`,
     })
   },
   o06(state) {
