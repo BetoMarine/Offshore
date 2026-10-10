@@ -60,6 +60,18 @@ function quiet(label, act) {
   return `<button type="button" class="btn quiet" data-act="${act}">${label}</button>`
 }
 
+function packPrimary() {
+  return `<button type="button" class="btn primary pack" data-act="sunday-pack">Sunday Pack</button>`
+}
+
+function packDoor(title, sub, act) {
+  return `<button type="button" class="packdoor" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+}
+
+function packActions(lead, more) {
+  return `<div class="packpin">${lead}${packDoor('Sunday Pack', 'For your day off', 'sunday-pack')}</div>${more ? `<div class="actionmore">${more}</div>` : ''}`
+}
+
 function moneyField(field, value, label = 'Amount') {
   const filled = value !== '' && value != null ? ' filled' : ''
   return `<label class="field${filled}"><span class="cur">HK$</span><input aria-label="${label}" data-field="${field}" data-kind="money" inputmode="decimal" autocomplete="off" value="${esc(value)}"></label><p class="hint warn" data-cap hidden>That number is too big.</p>`
@@ -458,15 +470,15 @@ const pages = {
   o05(state) {
     return shell({
       stepper: 'Your plan',
-      body: `<h1>Your pay, your plan</h1>
-        <p class="body">Split what you get into three parts. We only use what you enter.</p>
+      body: `<h1 class="presplit">Your pay, your plan</h1>
+        <p class="body presplit">We only use what you enter. Loan dues stay on Card.</p>
         ${enteredFact(state)}
-        <div class="parts">
+        <div class="parts preparts">
           <div class="part"><div class="num">1</div><div><div class="t">Home</div><div class="s">What you send home</div></div></div>
           <div class="part"><div class="num">2</div><div><div class="t">Bills</div><div class="s">Bills and debt you pay</div></div></div>
           <div class="part"><div class="num">3</div><div><div class="t">You</div><div class="s">What you keep for yourself</div></div></div>
         </div>`,
-      actions: `${primary('Start my plan', 'to-home')}${quiet('Keep for now', 'back')}`,
+      actions: `${packPrimary()}${quiet('Start my plan', 'to-home')}${quiet('Keep for now', 'back')}`,
     })
   },
   o06(state) {
@@ -518,7 +530,10 @@ const pages = {
         ${catchUpLine(state)}
         <p class="hint">${esc(hint)}</p>
         ${fixDoorHtml(state)}</div>`,
-      actions: `${primary(place ? 'This is my plan' : 'Done', 'plan-yes')}${quiet('Sunday Pack', 'sunday-pack')}${place ? quiet('Place what\u2019s left', 'place-left') : ''}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${papersQuiet(state)}`,
+      actions: packActions(
+        primary(place ? 'This is my plan' : 'Done', 'plan-yes'),
+        `${place ? quiet('Place what\u2019s left', 'place-left') : ''}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${papersQuiet(state)}`,
+      ),
     })
   },
   o10(state) {
@@ -529,10 +544,9 @@ const pages = {
       ? lates.map((lender) => `${esc(lender.name)} is late by ${hk(lender.overdueAmount)}.`).join(' ')
       : 'Nothing is late.'
     const afterCut = !!state.fix?.lastCutAmount
-    const pack = quiet('Sunday Pack', 'sunday-pack')
     const actions = afterCut
-      ? `${primary('Done', 'plan-yes')}${pack}${quiet('Cut again', 'fix-fit')}${quiet('Change a part', 'change-part')}${papersQuiet(state)}`
-      : `${quiet('Keep for now', 'plan-yes')}${pack}${papersQuiet(state)}${quiet('Change a part', 'change-part')}`
+      ? packActions(primary('Done', 'plan-yes'), `${quiet('Cut again', 'fix-fit')}${quiet('Change a part', 'change-part')}${papersQuiet(state)}`)
+      : packActions(quiet('Keep for now', 'plan-yes'), `${papersQuiet(state)}${quiet('Change a part', 'change-part')}`)
     return shell({
       stepper: afterCut ? 'Your plan' : 'Fix',
       body: `<h1>${afterCut ? 'Your plan for this month' : 'What you can do'}</h1>
@@ -583,7 +597,7 @@ const pages = {
         <button type="button" class="score" data-act="score">${ring(score.total)}<div><div class="lbl">${progressName(state)}</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
         <p class="flabel">How much of your part did you keep?</p>
         ${moneyField('checks.keptAmount', state.checks?.keptAmount || '', 'Kept')}`,
-      actions: `${primary('Go to lessons', 'lessons')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('See your life', 'life')}${papersQuiet(state)}`,
+      actions: `${primary('Go to lessons', 'lessons')}${packDoor('Sunday Pack', 'For your day off', 'sunday-pack')}${quiet('See your life', 'life')}${papersQuiet(state)}`,
     })
   },
   o12(state) {
@@ -697,7 +711,7 @@ const pages = {
             <div class="k">${hk(state.fund.monthly)} a month</div>
             <div class="k">No target yet. You can set one later.</div>
           </div>`,
-        actions: `${primary('Done', 'life')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Change it', 'fund-edit')}`,
+        actions: `${primary('Done', 'life')}${packDoor('Sunday Pack', 'For your day off', 'sunday-pack')}${quiet('Change it', 'fund-edit')}`,
       })
     }
     const fund = projectFund(state.fund, new Date())
@@ -721,7 +735,7 @@ const pages = {
         </div>
         <p class="hint">${esc(line)}</p>
         ${reach}`,
-      actions: `${primary('Done', 'life')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Change it', 'fund-edit')}`,
+      actions: `${primary('Done', 'life')}${packDoor('Sunday Pack', 'For your day off', 'sunday-pack')}${quiet('Change it', 'fund-edit')}`,
     })
   },
   o27(state) {
@@ -770,7 +784,7 @@ const pages = {
         <p class="hint">${hk(proj.freeAfter)} a month still free.</p>
         ${reach}
         <p class="hint">Your emergency money is not counted here.</p>`,
-      actions: `${primary('Done', 'life')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Add another goal', 'goal-add')}`,
+      actions: `${primary('Done', 'life')}${packDoor('Sunday Pack', 'For your day off', 'sunday-pack')}${quiet('Add another goal', 'goal-add')}`,
     })
   },
   o31(state) {
@@ -841,7 +855,7 @@ const pages = {
           ${fund}
           ${goals}
         </div>`,
-      actions: `${quiet('Sunday Pack', 'sunday-pack')}${papersQuiet(state)}${quiet('Erase my data', 'erase')}`,
+      actions: `${packDoor('Sunday Pack', 'For your day off', 'sunday-pack')}${papersQuiet(state)}${quiet('Erase my data', 'erase')}`,
     })
   },
   f01(state) {
@@ -944,10 +958,8 @@ const pages = {
       body: `<h1>We can still make a plan</h1>
         <p class="body">Split your pay. Pay yourself first. Fix what\u2019s late when you can.</p>
         ${enteredFact(state)}
-        <div class="privstrip">The plan stays on this phone. Your progress can be saved.</div>
-        <button type="button" class="sidelink" data-act="sunday-pack">Sunday Pack</button>
-        <button type="button" class="sidelink" data-act="lessons">Lessons</button>`,
-      actions: `${primary('See what you can do', 'see-fix')}${quiet('Keep for now', 'back')}`,
+        <div class="privstrip">The plan stays on this phone. Your progress can be saved.</div>`,
+      actions: `${packPrimary()}${packDoor('See what you can do', 'Fix late · fit the month', 'see-fix')}${quiet('Lessons', 'lessons')}${quiet('Keep for now', 'back')}`,
     })
   },
   ft03(state) {
@@ -1061,16 +1073,16 @@ const pages = {
     const lender = state.lenders[state.fix?.papersIndex] || { name: 'This loan' }
     const summary = contractSummary(state.contract)
     const labels = (summary.warn ? summary.amber : summary.clear).join(' · ')
-    const door = (act, title, sub) => `<button type="button" class="door" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    const door = (act, title, sub, loud = false) => `<button type="button" class="door${loud ? ' door-loud' : ''}" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
     return shell({
       stepper: 'Check',
-      body: `<h1>You can still get better</h1>
+      body: `<div class="teachcopy"><h1>You can still get better</h1>
         <p class="body">We are not lawyers. Split your pay. Pay yourself first.</p>
         <div class="fact"><b>${esc(lender.name)} · facts ready</b>${esc(labels)}</div>
-        <div class="helperslot"><b>Someone who can help</b>A helper will be named here. Not named yet.</div>
-        <div class="placepick teachdoors">
-          ${door('see-fix', 'See what you can do', 'Fix late · fit the month')}
-          ${door('sunday-pack', 'Sunday Pack', 'For your day off')}
+        <div class="helperslot"><b>Someone who can help</b>A helper will be named here. Not named yet.</div></div>
+        <div class="pinrow placepick teachdoors teachdoors-loud">
+          ${door('sunday-pack', 'Sunday Pack', 'For your day off', true)}
+          ${door('see-fix', 'See what you can do', 'Fix late · fit the month', true)}
           ${door('lessons', 'Lessons', 'Split · pay yourself · GCash')}
           ${door('papers-save', 'Save the facts', 'Keep on this phone')}
         </div>`,

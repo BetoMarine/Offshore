@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/seventh'
+const prefix = '/Offshore/preview/eighth'
 const shots = '/opt/cursor/artifacts'
 const required = [
   'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
@@ -84,7 +84,11 @@ async function clickText(text) {
     const norm = (s) => s.replace(/\s+/g, ' ').trim().replace(/[\u2019\u2018']/g, "'")
     const want = norm(text)
     const nodes = [...document.querySelectorAll('button')]
-    const el = nodes.find((node) => norm(node.textContent) === want)
+    const el = nodes.find((node) => {
+      if (norm(node.textContent) === want) return true
+      const title = node.querySelector('.t')
+      return !!(title && norm(title.textContent) === want)
+    })
     if (!el) {
       return {
         ok: false,
@@ -102,6 +106,58 @@ async function clickText(text) {
 async function clickSel(sel) {
   await page.click(sel)
   return mark()
+}
+
+async function shown(act) {
+  return page.evaluate((act) => {
+    const el = document.querySelector(`[data-act="${act}"]`)
+    if (!el) return { ok: false, reason: 'missing' }
+    const rect = el.getBoundingClientRect()
+    const viewH = window.innerHeight
+    const viewW = window.innerWidth
+    const box = {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      left: Math.round(rect.left),
+      right: Math.round(rect.right),
+      viewH,
+      viewW,
+    }
+    if (rect.width < 8 || rect.height < 8) return { ok: false, reason: 'tiny', ...box }
+    if (rect.top < -1 || rect.left < -1 || rect.bottom > viewH + 1 || rect.right > viewW + 1) {
+      return { ok: false, reason: 'outside', ...box }
+    }
+    let node = el.parentElement
+    while (node && node !== document.documentElement) {
+      const style = getComputedStyle(node)
+      if (/auto|hidden|scroll|clip/.test(`${style.overflow} ${style.overflowY} ${style.overflowX}`)) {
+        const parent = node.getBoundingClientRect()
+        if (rect.top < parent.top - 1 || rect.bottom > parent.bottom + 1 || rect.left < parent.left - 1 || rect.right > parent.right + 1) {
+          return {
+            ok: false,
+            reason: 'clipped',
+            ...box,
+            parentTop: Math.round(parent.top),
+            parentBottom: Math.round(parent.bottom),
+          }
+        }
+      }
+      node = node.parentElement
+    }
+    const x = Math.round(rect.left + Math.min(rect.width / 2, 28))
+    const y = Math.round(rect.top + rect.height / 2)
+    const hit = document.elementFromPoint(x, y)
+    const owner = hit && hit.closest ? hit.closest('[data-act]') : null
+    if (!owner || owner.dataset.act !== act) {
+      return { ok: false, reason: 'covered', hit: owner ? owner.dataset.act : '', x, y, ...box }
+    }
+    return { ok: true, ...box }
+  }, act)
+}
+
+async function assertShown(act) {
+  const info = await shown(act)
+  if (!info.ok) throw new Error(`${act} is not on the first screen: ${JSON.stringify(info)}`)
 }
 
 async function tapAct(act) {
@@ -320,6 +376,50 @@ try {
   if (!text.includes('You pay HK$760 a month.')) throw new Error(text)
   if (!text.includes('HK$260')) throw new Error(text)
   await clickText('Next')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('short path did not stop on your pay, your plan')
+  text = await bodyText()
+  if (!text.includes('Your pay, your plan') || !text.includes('We only use what you enter. Loan dues stay on Card.')) {
+    throw new Error(`plan intro copy missing:\n${text}`)
+  }
+  if (!text.includes('Start my plan') || !text.includes('Keep for now')) {
+    throw new Error(`plan intro actions missing:\n${text}`)
+  }
+  if (/spent|HK\$1,400 left|what are you doing/i.test(text)) throw new Error(`plan intro invented spend:\n${text}`)
+  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
+  await assertShown('sunday-pack')
+  const packLoud = await page.$eval('[data-act="sunday-pack"]', (el) => ({
+    primary: el.classList.contains('primary'),
+    quiet: el.classList.contains('quiet'),
+  }))
+  if (!packLoud.primary || packLoud.quiet) throw new Error(`Sunday Pack is not the clay primary on the plan intro: ${JSON.stringify(packLoud)}`)
+  const startQuiet = await page.$eval('[data-act="to-home"]', (el) => el.classList.contains('quiet') && !el.classList.contains('primary'))
+  if (!startQuiet) throw new Error('Start my plan is not the quiet control under Sunday Pack')
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
+  await assertShown('sunday-pack')
+  const introFits = await page.evaluate(() => {
+    const content = document.querySelector('.content')
+    const pack = document.querySelector('[data-act="sunday-pack"]')
+    const rect = pack.getBoundingClientRect()
+    return {
+      scrolled: content.scrollTop,
+      overflows: content.scrollHeight > content.clientHeight + 8,
+      packTop: rect.top,
+      packBottom: rect.bottom,
+      view: window.innerHeight,
+    }
+  })
+  if (introFits.scrolled || introFits.overflows || introFits.packBottom > introFits.view) {
+    throw new Error(`short-path Pack needs a scroll: ${JSON.stringify(introFits)}`)
+  }
+  await shot('o05-sunday-pack.png')
+  await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
+  await assertShown('sunday-pack')
+  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
+  await tapAct('sunday-pack')
+  text = await bodyText()
+  if (!text.includes('For your day off')) throw new Error(`short-path Sunday Pack did not open:\n${text}`)
+  await clickSel('[data-act="back"]')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('Sunday Pack back left your pay, your plan')
   await page.setViewport({ width: 390, height: 664, deviceScaleFactor: 1 })
   const fitted = await page.evaluate(() => {
     const button = document.querySelector('.actions .btn')
@@ -367,6 +467,13 @@ try {
       throw new Error('warm entry hid Sunday Pack or lessons')
     }
     await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
+    await assertShown('sunday-pack')
+    await assertShown('lessons')
+    await shot('ft00-sunday-pack.png')
+    await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
+    await assertShown('sunday-pack')
+    await assertShown('lessons')
+    await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
     await tapAct('sunday-pack')
     text = await bodyText()
     if (!text.includes('For your day off')) throw new Error(`warm Sunday Pack did nothing:\n${text}`)
@@ -388,6 +495,13 @@ try {
   if (!text.includes('Left is in your plan. Place it when you want')) {
     throw new Error(`leftover line missing:\n${text}`)
   }
+  if (!text.includes('Your plan for this month')) throw new Error(`plan title missing:\n${text}`)
+  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
+  await assertShown('sunday-pack')
+  await shot('plan-sunday-pack.png')
+  await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
+  await assertShown('sunday-pack')
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
   await clickText("Place what's left")
   text = await bodyText()
   if (!text.includes('From your plan. Place it where you want.')) throw new Error(`place missing:\n${text}`)
@@ -723,6 +837,12 @@ try {
   if (!text.includes('See what you can do') || !text.includes('Sunday Pack') || !text.includes('Lessons') || !text.includes('Save the facts')) {
     throw new Error(`papers teach doors missing:\n${text}`)
   }
+  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
+  await assertShown('sunday-pack')
+  await shot('ft07-sunday-pack.png')
+  await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
+  await assertShown('sunday-pack')
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
   await tapAct('sunday-pack')
   text = await bodyText()
   if (!text.includes('Pick up your day-off pack') && !text.includes('For your day off')) {
