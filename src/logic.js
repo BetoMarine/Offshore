@@ -125,12 +125,12 @@ export function clampCatchUp(state) {
   return state.catchUp
 }
 
+/** Bills are only the other bills she types. Loan dues and catch-up stay on the card. */
 export function billsParts(state) {
   const other = money(state.otherBills)
-  if (state.owes === false) return { other, debt: 0, catchUp: 0, total: other, owe: other }
-  const debt = debtMonthly(state.lenders)
+  if (state.owes === false) return { other, debt: 0, catchUp: 0, total: other, owe: 0 }
   const catchUp = money(catchUpValue(state))
-  return { other, debt, catchUp, total: other + debt + catchUp, owe: debt + catchUp }
+  return { other, debt: 0, catchUp, total: other, owe: 0 }
 }
 
 export function planFigures(state) {
@@ -373,8 +373,7 @@ export function dueThisWeek(lenders, now = new Date()) {
 }
 
 export function shrinkableBills(state) {
-  const parts = billsParts(state)
-  return roundCents(parts.other + parts.catchUp)
+  return roundCents(money(state.otherBills))
 }
 
 /** How much of a plan part a cut actually removes, and the gap left after it. */

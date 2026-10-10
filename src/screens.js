@@ -1,6 +1,5 @@
 import {
   billsParts,
-  catchUpValue,
   debtMonthly,
   freqWord,
   hk,
@@ -28,6 +27,7 @@ import {
   SCORE_MAX,
   shortDate,
   soonestDue,
+  isPastDate,
 } from './logic.js'
 import { LESSONS, lessonById } from './lessons.js'
 
@@ -87,11 +87,20 @@ function ring(total, size = '') {
   return `<div class="ring${xl ? ' xl' : ''}" role="img" aria-label="Score ${total} out of 100"><svg viewBox="0 0 ${box} ${box}" aria-hidden="true"><circle cx="${box / 2}" cy="${box / 2}" r="${r}" fill="none" stroke="#EADFC9" stroke-width="${sw}"/><circle cx="${box / 2}" cy="${box / 2}" r="${r}" fill="none" stroke="#A86A10" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${(c - dash).toFixed(1)}"/></svg><div class="n"><b>${total}</b><i>of 100</i></div></div>`
 }
 
+function isBehaviour(reason) {
+  return reason === 'you cleared late.' || reason === 'day-off pack done.' || reason === 'you made your plan.'
+}
+
 function lastLine(state, withNumber) {
   const reason = state.checks.lastUp
+  if (isBehaviour(reason)) return `Last: ${reason}`
   if (!reason) return 'Last went up: not yet this month.'
   if (withNumber) return `Last went up ${state.checks.lastDelta}: ${reason}`
   return `Last went up: ${reason}`
+}
+
+function progressName(state) {
+  return isBehaviour(state.checks?.lastUp) ? 'Your progress' : 'Your score'
 }
 
 function interestText(lender) {
@@ -139,7 +148,7 @@ function lenderCards(state) {
     const due = `Due <b>${hk(lender.due)}</b> ${freqWord(lender.freq)} · Next <b>${esc(shortDate(lender.nextDate))}</b>`
     const overdue = lender.overdue
       ? `<div class="od">Overdue ${hk(lender.overdueAmount)} since ${esc(shortDate(lender.overdueSince))}</div>`
-      : '<div class="k">Nothing overdue</div>'
+      : `<div class="k">Nothing overdue</div>${isPastDate(lender.nextDate) ? '<div class="od" style="margin-top:6px">That date has passed</div>' : ''}`
     const interest = interestText(lender)
     const yes = lender.paidOnTime === true ? ' on' : ''
     const no = lender.paidOnTime === false ? ' on' : ''
@@ -249,7 +258,7 @@ function catchUpLine(state) {
   const mark = still
     ? `<p class="hint"><button type="button" class="textlink" data-act="mark-paid" data-index="${state.fix.catchIndex}">Mark ${esc(lender.name)} paid</button> · Change any part any time.</p>`
     : ''
-  return `<div class="catchline"><b>Inside Bills</b>Includes ${hk(amount)} catch up on ${esc(lender.name)}. ${late}</div>${mark}`
+  return `<div class="catchline"><b>Catch up</b>${hk(amount)} toward ${esc(lender.name)} this month. ${late}</div>${mark}`
 }
 
 function stillLateLine(state) {
@@ -424,7 +433,7 @@ const pages = {
   },
   o02h(state) {
     return shell({
-      stepper: 'Step 2 of 6',
+      stepper: state.planSet || planPartsEntered(state) ? 'Who you owe' : 'Step 2 of 6',
       body: `<h1>Who you owe</h1><div class="mini">${lenderCards(state)}</div>`,
       actions: `${primary('That’s all', 'thats-all')}${quiet('Add another', 'add-lender')}`,
     })
@@ -471,17 +480,12 @@ const pages = {
   },
   o07(state) {
     const bills = billsParts(state)
-    const showDebt = state.owes !== false && state.lenders.length > 0
-    const debt = showDebt ? `<p class="flabel">Catch up</p>
-        ${moneyField('catchUp', catchUpValue(state), 'Catch up')}
-        <p class="hint">Overdue money. You can change this.</p>
-        <div class="readback"><b data-live="bills-total">Bills part: ${hk(bills.total)}</b><span data-live="bills-includes">Includes ${hk(bills.owe)} for what you owe</span></div>` : ''
     return shell({
       stepper: 'Step 5 of 6',
       body: `<p class="eyebrow">Money out · Part 2 of 3</p><h1>How much for your other bills each month?</h1>
-        <p class="body">Phone, transport, and other bills you pay.</p>
+        <p class="body">Phone, transport, and other bills you pay. What you owe stays on each card.</p>
         ${moneyField('otherBills', state.otherBills)}
-        ${debt}`,
+        <div class="readback"><b data-live="bills-total">Bills part: ${hk(bills.total)}</b><span>Only what you type here. Loan dues stay on Card.</span></div>`,
       actions: primary('Next', 'next'),
     })
   },
@@ -514,7 +518,7 @@ const pages = {
         ${catchUpLine(state)}
         <p class="hint">${esc(hint)}</p>
         ${fixDoorHtml(state)}</div>`,
-      actions: `${primary(place ? 'This is my plan' : 'Done', 'plan-yes')}${place ? quiet('Place what\u2019s left', 'place-left') : ''}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${papersQuiet(state)}`,
+      actions: `${primary(place ? 'This is my plan' : 'Done', 'plan-yes')}${quiet('Sunday Pack', 'sunday-pack')}${place ? quiet('Place what\u2019s left', 'place-left') : ''}${quiet('Change a part', 'change-part')}${late ? quiet('Catch up this one', 'fix-catch') : ''}${papersQuiet(state)}`,
     })
   },
   o10(state) {
@@ -565,8 +569,10 @@ const pages = {
     const overdue = overdueTotal(state.lenders)
     const interest = knownInterest(state.lenders)
     const score = scoreOf(state)
+    const passed = !overdue && soon && isPastDate(soon.nextDate) ? '<div class="od">That date has passed</div>' : ''
+    const oweState = overdue ? `<div class="od">Overdue ${hk(overdue)}</div>` : '<div class="k">Nothing overdue</div>'
     const oweBody = state.lenders.length
-      ? `<div class="h">What you owe${soon ? `<span>Next due ${esc(shortDate(soon.nextDate))}</span>` : ''}</div>${overdue ? `<div class="od">Overdue ${hk(overdue)}</div>` : ''}${interest != null ? `<div class="k">${esc(`About ${hk(interest)} interest a month`)}</div>` : ''}`
+      ? `<div class="h">What you owe${soon ? `<span>Next due ${esc(shortDate(soon.nextDate))}</span>` : ''}</div>${oweState}${passed}${interest != null ? `<div class="k">${esc(`About ${hk(interest)} interest a month`)}</div>` : ''}`
       : '<div class="h">What you owe</div>'
     return shell({
       stepper: 'Your month',
@@ -574,7 +580,7 @@ const pages = {
         <button type="button" class="lifecard" data-act="today"><div class="h">Today<span>${esc(monthName(new Date()))}</span></div>${planPartsEntered(state) ? `<div class="k">Left this month</div><div class="v" data-left="${fig.left}">${hk(fig.left)}</div><div class="k">In ${hk(fig.pay)} · Out ${hk(fig.out)}</div>` : '<div class="k">Split your pay to see what is left.</div>'}</button>
         <button type="button" class="lifecard" data-act="owe" style="margin-top:12px">${oweBody}</button>
         <div style="height:12px"></div>
-        <button type="button" class="score" data-act="score">${ring(score.total)}<div><div class="lbl">Your score</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
+        <button type="button" class="score" data-act="score">${ring(score.total)}<div><div class="lbl">${progressName(state)}</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
         <p class="flabel">How much of your part did you keep?</p>
         ${moneyField('checks.keptAmount', state.checks?.keptAmount || '', 'Kept')}`,
       actions: `${primary('Go to lessons', 'lessons')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('See your life', 'life')}${papersQuiet(state)}`,
@@ -691,7 +697,7 @@ const pages = {
             <div class="k">${hk(state.fund.monthly)} a month</div>
             <div class="k">No target yet. You can set one later.</div>
           </div>`,
-        actions: `${primary('Done', 'life')}${quiet('Change it', 'fund-edit')}`,
+        actions: `${primary('Done', 'life')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Change it', 'fund-edit')}`,
       })
     }
     const fund = projectFund(state.fund, new Date())
@@ -715,7 +721,7 @@ const pages = {
         </div>
         <p class="hint">${esc(line)}</p>
         ${reach}`,
-      actions: `${primary('Done', 'life')}${quiet('Change it', 'fund-edit')}`,
+      actions: `${primary('Done', 'life')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Change it', 'fund-edit')}`,
     })
   },
   o27(state) {
@@ -764,7 +770,7 @@ const pages = {
         <p class="hint">${hk(proj.freeAfter)} a month still free.</p>
         ${reach}
         <p class="hint">Your emergency money is not counted here.</p>`,
-      actions: `${primary('Done', 'life')}${quiet('Add another goal', 'goal-add')}`,
+      actions: `${primary('Done', 'life')}${quiet('Sunday Pack', 'sunday-pack')}${quiet('Add another goal', 'goal-add')}`,
     })
   },
   o31(state) {
@@ -802,7 +808,11 @@ const pages = {
     const score = scoreOf(state)
     const oweLines = state.lenders.map((lender) => {
       const interest = interestText(lender)
-      return `<div class="oweline"><span>${esc(lender.name)} · next ${esc(shortDate(lender.nextDate))}</span>${lender.overdue ? `<span class="od">Overdue ${hk(lender.overdueAmount)}</span>` : ''}</div>${interest ? `<div class="k">${esc(interest)}</div>` : ''}`
+      const status = lender.overdue
+        ? `<span class="od">Overdue ${hk(lender.overdueAmount)}</span>`
+        : '<span class="k">Nothing overdue</span>'
+      const passed = !lender.overdue && isPastDate(lender.nextDate) ? '<div class="od">That date has passed</div>' : ''
+      return `<div class="oweline"><span>${esc(lender.name)} · next ${esc(shortDate(lender.nextDate))}</span>${status}</div>${passed}${interest ? `<div class="k">${esc(interest)}</div>` : ''}`
     }).join('')
     const owe = `<button type="button" class="lifecard" data-act="owe"><div class="h">What you owe</div>${oweLines || '<div class="k">Do you owe anyone money?</div>'}</button>`
     const fundProj = state.fund ? projectFund(state.fund, new Date()) : null
@@ -824,7 +834,7 @@ const pages = {
     return shell({
       stepper: 'Your life',
       body: `<h1 style="margin-bottom:10px">Your life</h1>
-        <button type="button" class="score compact" data-act="score">${ring(score.total)}<div><div class="lbl">Your score</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
+        <button type="button" class="score compact" data-act="score">${ring(score.total)}<div><div class="lbl">${progressName(state)}</div><div class="why">${esc(lastLine(state, false))}</div></div></button>
         <div class="mini" style="margin-top:10px">
           <button type="button" class="lifecard" data-act="today"><div class="h">Today<span>${planPartsEntered(state) ? `Left ${hk(fig.left)}` : 'Make your plan'}</span></div></button>
           ${owe}
@@ -996,6 +1006,40 @@ const pages = {
           <div class="row"><span class="k">Out</span><span class="v">${hk(fig.out)}</span></div>
           <div class="row total"><span class="k">Left</span><span class="v">${hk(fig.left)}</span></div>
         </div>`,
+      actions: `${primary('See where it can go', 'gap-go')}${quiet('Done for now', 'pack-later')}`,
+    })
+  },
+  ft14(state) {
+    const started = !!state.sundayPack?.started
+    const door = (act, title, sub) => `<button type="button" class="door" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    return shell({
+      stepper: 'Start',
+      body: `<span class="followchip">Welcome back</span>
+        <h1>Pick up where you left off</h1>
+        <p class="body">Your plan is still here. Open what you need.</p>
+        <div class="placepick">
+          ${door('resume-plan', 'Your plan', 'Home · Bills · You · Left')}
+          ${door('sunday-pack', 'Sunday Pack', started ? 'You started this · continue' : 'For your day off')}
+          ${door('month', 'Today', 'Your month · what you owe')}
+        </div>`,
+    })
+  },
+  ft15(state) {
+    const fig = saveableGap(state) || planFigures(state)
+    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">Day-off pack · picked up</span>
+        <h1>Room to save this month</h1>
+        <p class="leftoversub">Pay you entered · Out from your plan. Nothing we made up.</p>
+        <div class="rows">
+          ${row('Pay', fig.pay)}
+          ${row('Home', fig.home)}
+          ${row('Bills', fig.bills)}
+          ${row('You', fig.you)}
+          <div class="row total"><span class="k">Left</span><span class="v">${hk(fig.left)}</span></div>
+        </div>
+        <p class="hint">Left is room to start saving.</p>`,
       actions: `${primary('See where it can go', 'gap-go')}${quiet('Done for now', 'pack-later')}`,
     })
   },

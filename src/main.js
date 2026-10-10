@@ -125,7 +125,7 @@ function back() {
 }
 
 function isPackScreen(screen) {
-  return screen === 'f07' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10'
+  return screen === 'f07' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10' || screen === 'ft15'
 }
 
 function leavePack() {
@@ -160,6 +160,10 @@ function openSundayPack() {
   return go(state.sundayPack?.started ? 'ft03' : 'f07')
 }
 
+function canResume() {
+  return !!(state.planSet || state.sundayPack?.started || planPartsEntered(state))
+}
+
 function planScreen() {
   if (!partsReady()) return 'o05'
   return planFigures(state).over ? 'o10' : 'o09'
@@ -173,6 +177,7 @@ function hardPlan() {
 
 function finishPlan() {
   state.planSet = true
+  if (!state.checks.lastUp) state.checks.lastUp = 'you made your plan.'
   const door = state.afterSetup
   state.afterSetup = null
   state.returnTo = null
@@ -216,7 +221,7 @@ function canAdvance() {
     case 'o02g2': return !!draft && draft.overdueAmount !== '' && !tooBigMoney(draft.overdueAmount)
     case 'o02g3': return !!draft && draft.overdueSince !== ''
     case 'o06': return state.home !== '' && !tooBigMoney(state.home)
-    case 'o07': return state.otherBills !== '' && !tooBigMoney(state.otherBills) && !tooBigMoney(state.catchUp)
+    case 'o07': return state.otherBills !== '' && !tooBigMoney(state.otherBills)
     case 'o08': return state.you !== '' && !tooBigMoney(state.you)
     case 'o23': return state.fundDraft.amount !== '' && !tooBigMoney(state.fundDraft.amount)
     case 'o24': return state.fundDraft.by !== ''
@@ -255,7 +260,7 @@ function updateLive() {
   const total = document.querySelector('[data-live="bills-total"]')
   if (total) total.textContent = `Bills part: ${hk(bills.total)}`
   const includes = document.querySelector('[data-live="bills-includes"]')
-  if (includes) includes.textContent = `Includes ${hk(bills.owe)} for what you owe`
+  if (includes) includes.textContent = 'Only what you type here. Loan dues stay on Card.'
   const gap = document.querySelector('[data-live="cut-gap"]')
   if (gap) {
     const result = cutResult(state, state.fix?.part, state.fix?.cutAmount || 0)
@@ -290,11 +295,7 @@ function saveCut() {
   } else if (part === 'you') {
     state.you = formatAmount(Math.max(0, money(state.you) - applied))
   } else {
-    const catchNow = money(state.catchUp)
-    const fromCatch = Math.min(applied, catchNow)
-    state.catchUp = formatAmount(catchNow - fromCatch)
-    state.catchUpEdited = true
-    state.otherBills = formatAmount(Math.max(0, money(state.otherBills) - roundCents(applied - fromCatch)))
+    state.otherBills = formatAmount(Math.max(0, money(state.otherBills) - applied))
   }
   state.fix.lastCutPart = part
   state.fix.lastCutAmount = formatAmount(applied)
@@ -336,6 +337,7 @@ function saveMark() {
   if (result.cleared) {
     lender.overdue = false
     lender.overdueAmount = ''
+    state.checks.lastUp = 'you cleared late.'
   } else {
     lender.overdue = true
     lender.overdueAmount = formatAmount(result.left)
@@ -385,9 +387,12 @@ function savePapers() {
 }
 
 function commitLender() {
+  const previous = state.editIndex >= 0 ? state.lenders[state.editIndex] : null
   const lender = lenderFromDraft(state.draft)
+  const cleared = !!(previous?.overdue && money(previous.overdueAmount) > 0 && !lender.overdue)
   if (state.editIndex >= 0) state.lenders[state.editIndex] = lender
   else state.lenders.push(lender)
+  if (cleared) state.checks.lastUp = 'you cleared late.'
   state.owes = true
   state.draft = null
   state.editIndex = -1
@@ -528,13 +533,23 @@ async function doErase() {
   resetToStart()
 }
 
+function controlOf(event) {
+  const path = typeof event.composedPath === 'function' ? event.composedPath() : []
+  for (const node of path) {
+    if (node instanceof Element && node.hasAttribute('data-act')) return node
+  }
+  let node = event.target
+  if (node && node.nodeType !== 1) node = node.parentElement
+  return node?.closest?.('[data-act]') || null
+}
+
 function onClick(event) {
-  const el = event.target.closest('[data-act]')
+  const el = controlOf(event)
   if (!el || el.disabled) return
   const act = el.dataset.act
   if (act === 'back') return back()
   if (act === 'exit' || act === 'home') return home()
-  if (act === 'start') return go('o01')
+  if (act === 'start') return go(canResume() ? 'ft14' : 'o01')
   if (act === 'erase') return go('o34')
   if (act === 'erase-yes') return doErase()
   if (act === 'keep') return back()
@@ -631,6 +646,7 @@ function onClick(event) {
   if (act === 'plan-yes') return finishPlan()
   if (act === 'dayoff-done') {
     state.sundayPack = { ...(state.sundayPack || {}), started: true }
+    state.checks.lastUp = 'day-off pack done.'
     saveState(state)
     if (!saveableGap(state)) return back()
     return go(packFreedRoom(state) ? 'ft09' : 'ft08')
@@ -666,10 +682,12 @@ function onClick(event) {
     return go('o08')
   }
   if (act === 'place-cushion') return go(planScreen())
+  if (act === 'resume-plan') return go(planScreen())
   if (act === 'pack-continue') {
     state.sundayPack = { ...(state.sundayPack || {}), started: true }
     saveState(state)
     if (packFreedRoom(state)) return go('ft09')
+    if (saveableGap(state)) return go('ft15')
     return go(state.planSet ? 'o11' : 'o01')
   }
   if (act === 'pack-not-now') return go('o00')

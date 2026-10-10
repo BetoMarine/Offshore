@@ -87,13 +87,14 @@ const state = {
   },
 }
 assert.equal(catchUpValue(state), '500')
-assert.equal(billsParts(state).total, 1760)
+assert.equal(billsParts(state).total, 500)
+assert.equal(billsParts(state).owe, 0)
 state.catchUpEdited = true
 state.catchUp = '200'
-assert.equal(billsParts(state).total, 1460)
-assert.equal(planFigures(state).left, 760)
+assert.equal(billsParts(state).total, 500)
+assert.equal(planFigures(state).left, 1720)
 state.catchUp = '0'
-assert.equal(planFigures(state).left, 960)
+assert.equal(planFigures(state).left, 1720)
 
 const duesOnly = {
   pay: '5000',
@@ -278,7 +279,7 @@ const billCut = cutResult({
   lenders: [],
   fund: null,
 }, 'bills', '500')
-assert.equal(billCut.applied, 500)
+assert.equal(billCut.applied, 400)
 assert.equal(billCut.gap, 0)
 const keptCatch = {
   pay: '5220',
