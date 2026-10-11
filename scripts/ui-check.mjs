@@ -6,14 +6,14 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/tenth'
+const prefix = '/Offshore/preview/eleventh'
 const shots = '/opt/cursor/artifacts'
 const required = [
   'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
   'o03', 'o04', 'o05', 'o06', 'o07', 'o08', 'o09', 'o10', 'o11', 'o12',
   'o13', 'o14', 'o15', 'o16', 'o17', 'o18', 'o19', 'o20', 'o21', 'o22a', 'o22b',
   'o23', 'o24', 'o25', 'o26', 'o27', 'o28', 'o29', 'o30', 'o31', 'o32', 'o33', 'o34', 'o35', 'parts', 'o02r',
-  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'f07', 'ft00', 'ft02b', 'ft03', 'ft05', 'ft07', 'ft08', 'ft09', 'ft10', 'ft14', 'ft15', 'papers', 'papers-who', 'send', 'l20', 'l24',
+  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'f07', 'ft00', 'ft02b', 'ft03', 'ft05', 'ft07', 'ft08', 'ft09', 'ft10', 'ft14', 'ft15', 'ft16', 'ft17', 'ft18', 'ft19', 'ft20', 'papers', 'papers-who', 'send', 'l20', 'l24',
 ]
 
 const types = {
@@ -495,6 +495,26 @@ try {
   if (!text.includes('Bills part: HK$500')) throw new Error(`bills did not stay other-only:\n${text}`)
   if (text.includes('HK$1,760') || text.includes('HK$1,260')) throw new Error(`dues were added into bills:\n${text}`)
   await clickText('Next')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft16') throw new Error('fitting month did not open after bills')
+  text = await bodyText()
+  if (!text.includes('This month fits') || !text.includes('Left is room for a cushion.') || !text.includes('HK$1,960') || !text.includes('HK$760')) {
+    throw new Error(`main month fit:\n${text}`)
+  }
+  if (text.includes('HK$1,260') || /you will save|save HK\$/i.test(text)) throw new Error(`month invented spend or a promised save:\n${text}`)
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await shot('ft16-month-fits.png')
+  await clickText('Start a cushion')
+  text = await bodyText()
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`cushion did not land on room to save:\n${text}`)
+  if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month')) throw new Error(`room feel missing:\n${text}`)
+  if (!text.includes('Pay you entered · Out from your plan. Nothing we made up.') || !text.includes('Left is room to start saving.')) {
+    throw new Error(`room copy missing:\n${text}`)
+  }
+  if (!text.includes('HK$2,720') || !text.includes('HK$500')) throw new Error(`room numbers:\n${text}`)
+  if (text.includes('HK$760') || text.includes('HK$1,260')) throw new Error(`room invented installment into out:\n${text}`)
+  await shot('ft15-room-to-save.png')
+  await clickText('See where it can go')
+  await clickText('Put toward You')
   await fill('Amount', '1000')
   await clickText('Next')
   if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'ft00') {
@@ -1143,6 +1163,11 @@ try {
   await clickText('Next')
   await fill('Amount', '200')
   await clickText('Next')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'ft16') {
+    await clickText('Start a cushion')
+    await clickText('See where it can go')
+    await clickText('Put toward You')
+  }
   await fill('Amount', '300')
   await clickText('Next')
   if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'ft00') await clickText('See what you can do')
@@ -1251,7 +1276,120 @@ try {
   text = await bodyText()
   if (!text.includes('Bills part: HK$400')) throw new Error(`bills did not take the typed amount:\n${text}`)
   await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o08') throw new Error('Bills Next did not open You')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft16') throw new Error('Home and Bills did not open the fitting month')
+  text = await bodyText()
+  if (!text.includes('This month fits') || text.includes('HK$3,600')) throw new Error(`agency month invented dues:\n${text}`)
+
+  await clickSel('[data-act="exit"]')
+  await clickText('Erase my data')
+  await clickText('Erase everything')
+  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
+  await clickText('Start')
+  await clickSel('[data-door="fix"]')
+  await typeMoney('Amount', '5220')
+  await clickText('Next')
+  await clickText('Yes')
+  await fill('Who', 'Card')
+  await clickText('Next')
+  await typeMoney('Amount', '10000')
+  await clickText('Next')
+  await clickText("I don't know")
+  await typeMoney('Amount', '1200')
+  await clickText('Next')
+  await fill('Next date', '2026-11-20')
+  await clickText('Next')
+  await clickText('No')
+  await clickText("That's all")
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Start my plan')
+  await typeMoney('Amount', '2500')
+  await clickText('Next')
+  await typeMoney('Amount', '800')
+  await clickText('Next')
+  text = await bodyText()
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft16') throw new Error(`positive fork missed:\n${text}`)
+  if (!text.includes('HK$5,220') || !text.includes('HK$1,200') || !text.includes('HK$2,500') || !text.includes('HK$800') || !text.includes('HK$720')) {
+    throw new Error(`FT16 sample math:\n${text}`)
+  }
+  if (/you will save|save HK\$/i.test(text)) throw new Error(`FT16 promised a save:\n${text}`)
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await shot('ft16-sample-fits.png')
+  await tapAct('sunday-pack')
+  text = await bodyText()
+  if (!text.includes('Improve this month') || !text.includes('Set aside what you can · toward a cushion') || !text.includes('no promised amount')) {
+    throw new Error(`FT17 missing:\n${text}`)
+  }
+  if (/you will save|save HK\$/i.test(text)) throw new Error(`FT17 promised a save:\n${text}`)
+  await shot('ft17-pack-improve.png')
+  await clickText('Done')
+  text = await bodyText()
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`positive Done missed room to save:\n${text}`)
+  if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month') || !text.includes('Left is room to start saving.')) {
+    throw new Error(`positive room feel:\n${text}`)
+  }
+  if (!text.includes('HK$1,920') || !text.includes('HK$800')) throw new Error(`positive room numbers:\n${text}`)
+  if (text.includes('HK$2,000') || text.includes('HK$1,200')) throw new Error(`positive room invented installment into out:\n${text}`)
+  await shot('ft15-after-improve.png')
+
+  await clickSel('[data-act="exit"]')
+  await clickText('Erase my data')
+  await clickText('Erase everything')
+  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
+  await clickText('Start')
+  await clickSel('[data-door="fix"]')
+  await typeMoney('Amount', '5000')
+  await clickText('Next')
+  await clickText('Yes')
+  await fill('Who', 'Card')
+  await clickText('Next')
+  await typeMoney('Amount', '8000')
+  await clickText('Next')
+  await clickText("I don't know")
+  await typeMoney('Amount', '2000')
+  await clickText('Next')
+  await fill('Next date', '2026-11-20')
+  await clickText('Next')
+  await clickText('No')
+  await clickText("That's all")
+  await clickText('Next')
+  await clickText('Next')
+  await clickText('Start my plan')
+  await typeMoney('Amount', '2500')
+  await clickText('Next')
+  await typeMoney('Amount', '800')
+  await clickText('Next')
+  text = await bodyText()
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft18') throw new Error(`short month missed:\n${text}`)
+  if (!text.includes('This month is short') || !text.includes('HK$300') || !text.includes('We can build a payment plan you take with you.')) {
+    throw new Error(`FT18 copy:\n${text}`)
+  }
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await shot('ft18-month-short.png')
+  await tapAct('sunday-pack')
+  text = await bodyText()
+  if (!text.includes('A payment you can carry') || !text.includes('HK$3,300') || !text.includes('HK$250') || !text.includes('HK$1,450')) {
+    throw new Error(`FT19 math:\n${text}`)
+  }
+  if (!text.includes('Ask for HK$1,450 a month · about 3 months to agree')) throw new Error(`FT19 package:\n${text}`)
+  if (/you will save|save HK\$/i.test(text)) throw new Error(`FT19 promised a save:\n${text}`)
+  await shot('ft19-new-installment.png')
+  await clickText('See what you take')
+  text = await bodyText()
+  if (!text.includes('What you take with you') || !text.includes('About 3 months to negotiate') || !text.includes('Save the package')) {
+    throw new Error(`FT20 copy:\n${text}`)
+  }
+  await shot('ft20-package.png')
+  await clickText('Save the package')
+  text = await bodyText()
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`package save missed room to save:\n${text}`)
+  if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month') || !text.includes('HK$1,700')) {
+    throw new Error(`package room:\n${text}`)
+  }
+  if (!text.includes('HK$800') || text.includes('HK$2,800') || text.includes('HK$2,000')) {
+    throw new Error(`package room invented installment into out:\n${text}`)
+  }
+  await shot('ft15-after-package.png')
 
   const missing = required.filter((id) => !seen.has(id))
   if (missing.length) throw new Error(`screens not visited: ${missing.join(', ')}`)

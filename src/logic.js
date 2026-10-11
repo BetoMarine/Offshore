@@ -164,6 +164,50 @@ export function saveableGap(state) {
   return fig
 }
 
+/**
+ * Month from loan installment, send-home, and bills she entered.
+ * Installment is not spend and is not added into Out.
+ */
+export function monthMath(state) {
+  if (!state || state.pay === '' || state.home === '' || state.otherBills === '') return null
+  if (state.owes === false || !(state.lenders || []).length) return null
+  const pay = money(state.pay)
+  const installment = roundCents(debtMonthly(state.lenders))
+  const home = money(state.home)
+  const bills = money(state.otherBills)
+  const expenses = roundCents(home + bills)
+  const left = roundCents(pay - installment - expenses)
+  const save = roundCents(pay * 0.05)
+  const proposed = roundCents(pay - expenses - save)
+  const fits = left > 0.001
+  return {
+    pay,
+    installment,
+    home,
+    bills,
+    expenses,
+    left,
+    short: fits ? 0 : roundCents(-left),
+    fits,
+    save,
+    proposed,
+  }
+}
+
+/** Leftover from pay, send-home, bills, and You. Loan installment stays off Out. */
+export function enteredRoom(state) {
+  if (!state || state.pay === '') return null
+  if (state.home === '' && state.otherBills === '' && state.you === '') return null
+  const pay = money(state.pay)
+  const home = money(state.home)
+  const bills = money(state.otherBills)
+  const you = money(state.you)
+  const out = roundCents(home + bills + you)
+  const left = roundCents(pay - out)
+  if (!(left > 0.001)) return null
+  return { pay, home, bills, you, out, left }
+}
+
 /** Pack actions freed room: catch-up is in the plan and nothing is still late. */
 export function packFreedRoom(state) {
   if (!saveableGap(state)) return false

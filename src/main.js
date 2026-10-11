@@ -24,6 +24,8 @@ import {
   packFreedRoom,
   planFigures,
   planPartsEntered,
+  monthMath,
+  enteredRoom,
   saveableGap,
   reduceDue,
   roundCents,
@@ -125,7 +127,7 @@ function back() {
 }
 
 function isPackScreen(screen) {
-  return screen === 'f07' || screen === 'ft02b' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10' || screen === 'ft15'
+  return screen === 'f07' || screen === 'ft02b' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10' || screen === 'ft15' || screen === 'ft16' || screen === 'ft17' || screen === 'ft18' || screen === 'ft19' || screen === 'ft20'
 }
 
 function rememberPackAction() {
@@ -170,6 +172,9 @@ function partsReady() {
 }
 
 function openSundayPack() {
+  const here = route().screen
+  const month = monthMath(state)
+  if (month && (here === 'ft16' || here === 'ft18')) return go(month.fits ? 'ft17' : 'ft19')
   return go(state.sundayPack?.started ? 'ft03' : 'f07')
 }
 
@@ -480,6 +485,10 @@ function next() {
         state.returnTo = null
         return go(planScreen())
       }
+      if (monthMath(state)) {
+        state.returnTo = null
+        return go(monthMath(state).fits ? 'ft16' : 'ft18')
+      }
       return go('o08')
     case 'o08':
       state.returnTo = null
@@ -666,7 +675,44 @@ function onClick(event) {
     if (!planPartsEntered(state)) return go('ft02b')
     return back()
   }
-  if (act === 'gap-go') return saveableGap(state) ? go('ft10') : leavePack()
+  if (act === 'improve-done') {
+    state.sundayPack = { ...(state.sundayPack || {}), started: true }
+    state.checks.lastUp = 'day-off pack done.'
+    if (!state.fix.lastAction) state.fix.lastAction = 'Set aside what you can · toward a cushion'
+    saveState(state)
+    if (packFreedRoom(state)) return go('ft09')
+    if (enteredRoom(state) || saveableGap(state)) return go('ft15')
+    if (!planPartsEntered(state)) return go('o08')
+    return back()
+  }
+  if (act === 'start-cushion') return enteredRoom(state) ? go('ft15') : go('ft10')
+  if (act === 'see-package') return go('ft20')
+  if (act === 'save-package') {
+    state.sundayPack = { ...(state.sundayPack || {}), started: true }
+    state.checks.lastUp = 'day-off pack done.'
+    const month = monthMath(state)
+    if (month) state.fix.lastAction = `Ask for ${hk(month.proposed)} a month`
+    saveState(state)
+    if (enteredRoom(state) || saveableGap(state)) return go('ft15')
+    if (!planPartsEntered(state)) return go('o08')
+    return go(planScreen())
+  }
+  if (act === 'make-plan') {
+    if (state.home === '') return go('o06')
+    if (state.otherBills === '') return go('o07')
+    if (state.you === '') return go('o08')
+    return go(planScreen())
+  }
+  if (act === 'adjust-numbers') {
+    state.returnTo = 'month'
+    return go('o06')
+  }
+  if (act === 'keep-month') {
+    if (state.planSet) return go('o11')
+    if (planPartsEntered(state)) return go(planScreen())
+    return back()
+  }
+  if (act === 'gap-go') return (saveableGap(state) || enteredRoom(state)) ? go('ft10') : leavePack()
   if (act === 'pack-later') return leavePack()
   if (act === 'cushion-you') {
     state.returnTo = 'plan'

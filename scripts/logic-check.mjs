@@ -6,6 +6,7 @@ import {
   catchUpValue,
   clampCatchUp,
   debtMonthly,
+  enteredRoom,
   goalPlans,
   goalSurplus,
   hk,
@@ -14,6 +15,7 @@ import {
   lenderFromDraft,
   money,
   monthlyDue,
+  monthMath,
   monthsUntil,
   noteOverdue,
   offshoreKey,
@@ -67,6 +69,40 @@ const lenders = [
 ]
 assert.equal(debtMonthly(lenders), 760)
 assert.equal(overdueTotal(lenders), 500)
+
+const fitMonth = monthMath({
+  pay: '5220',
+  owes: true,
+  home: '2500',
+  otherBills: '800',
+  you: '',
+  lenders: [{ due: '1200', freq: 'monthly', overdue: true, overdueAmount: '2400' }],
+})
+assert.equal(fitMonth.installment, 1200)
+assert.equal(fitMonth.left, 720)
+assert.equal(fitMonth.fits, true)
+assert.equal(fitMonth.bills, 800)
+const fitRoom = enteredRoom({
+  pay: '5220', home: '2500', otherBills: '800', you: '',
+})
+assert.equal(fitRoom.bills, 800)
+assert.equal(fitRoom.out, 3300)
+assert.equal(fitRoom.left, 1920)
+
+const shortMonth = monthMath({
+  pay: '5000',
+  owes: true,
+  home: '2500',
+  otherBills: '800',
+  you: '',
+  lenders: [{ due: '2000', freq: 'monthly' }],
+})
+assert.equal(shortMonth.fits, false)
+assert.equal(shortMonth.short, 300)
+assert.equal(shortMonth.expenses, 3300)
+assert.equal(shortMonth.save, 250)
+assert.equal(shortMonth.proposed, 1450)
+assert.equal(enteredRoom({ pay: '5000', home: '2500', otherBills: '800', you: '' }).left, 1700)
 
 const state = {
   pay: '5220',

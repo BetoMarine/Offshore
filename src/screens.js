@@ -18,6 +18,7 @@ import {
   planFigures,
   planLeft,
   planPartsEntered,
+  monthMath,
   saveableGap,
   projectFund,
   projectGoal,
@@ -1092,6 +1093,91 @@ const pages = {
           ${door('sunday-pack', 'Sunday Pack', started ? 'You started this · continue' : 'For your day off', true)}
           ${door('month', 'Today', 'Your month · what you owe')}
         </div>`,
+    })
+  },
+  ft16(state) {
+    const month = monthMath(state) || { pay: 0, installment: 0, home: 0, bills: 0, left: 0 }
+    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
+    return shell({
+      stepper: 'Your month',
+      body: `<span class="followchip">Your month</span>
+        <h1>This month fits</h1>
+        <p class="leftoversub">From pay, installment, send home, and bills you entered.</p>
+        <div class="rows">
+          ${row('Pay', month.pay)}
+          ${row('Installment', month.installment)}
+          ${row('Send home', month.home)}
+          ${row('Bills', month.bills)}
+          <div class="row total"><span class="k">Left</span><span class="v">${hk(month.left)}</span></div>
+        </div>
+        <p class="hint">Left is room for a cushion.</p>`,
+      actions: `${primary('Start a cushion', 'start-cushion')}${packDoor('Sunday Pack', 'Improve this month · no promised amount', 'sunday-pack')}`,
+    })
+  },
+  ft17(state) {
+    const month = monthMath(state) || { left: 0 }
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">Day-off pack</span>
+        <h1>Improve this month</h1>
+        <p class="body">One small habit for Sunday. Progress you keep \u2014 no promised amount.</p>
+        <div class="week">
+          <div class="row"><span>Left this month</span><span class="v">${hk(month.left)}</span></div>
+          <div class="row"><span>Toward</span><span class="v">Cushion \u00b7 emergency fund</span></div>
+        </div>
+        <div class="actionpick"><b>Your action</b>Set aside what you can \u00b7 toward a cushion</div>
+        <div class="saved">${LOCK}<span>Saved on this phone. Progress is what you did \u2014 not a number we promise.</span></div>`,
+      actions: `${primary('Done', 'improve-done')}${quiet('Start a cushion', 'start-cushion')}`,
+    })
+  },
+  ft18(state) {
+    const month = monthMath(state) || { pay: 0, installment: 0, home: 0, bills: 0, short: 0 }
+    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
+    return shell({
+      stepper: 'Your month',
+      body: `<span class="followchip">Your month</span>
+        <h1>This month is short</h1>
+        <p class="leftoversub">From pay, installment, send home, and bills you entered.</p>
+        <div class="rows">
+          ${row('Pay', month.pay)}
+          ${row('Installment', month.installment)}
+          ${row('Send home', month.home)}
+          ${row('Bills', month.bills)}
+          <div class="row total"><span class="k">Short</span><span class="v">${hk(month.short)}</span></div>
+        </div>
+        <p class="hint">We can build a payment plan you take with you.</p>`,
+      actions: `${packPrimary()}${quiet('Keep for now', 'keep-month')}`,
+    })
+  },
+  ft19(state) {
+    const month = monthMath(state) || { pay: 0, expenses: 0, save: 0, proposed: 0 }
+    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">Day-off pack</span>
+        <h1>A payment you can carry</h1>
+        <p class="body">From your pay, your expenses, and 5% you keep to save.</p>
+        <div class="rows">
+          ${row('Pay', month.pay)}
+          ${row('Send home + bills', month.expenses)}
+          ${row('Keep 5% to save', month.save)}
+          <div class="row total"><span class="k">New installment</span><span class="v">${hk(month.proposed)}</span></div>
+        </div>
+        <div class="actionpick"><b>Your package</b>Ask for ${hk(month.proposed)} a month \u00b7 about 3 months to agree</div>`,
+      actions: `${primary('See what you take', 'see-package')}${quiet('Adjust numbers', 'adjust-numbers')}`,
+    })
+  },
+  ft20(state) {
+    const month = monthMath(state) || { proposed: 0 }
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">Day-off pack done</span>
+        <h1>What you take with you</h1>
+        <p class="body">Ask for this installment. About 3 months to agree. Then keep planning if you want.</p>
+        <div class="fact"><b>Your package</b>New installment ${hk(month.proposed)} a month \u00b7 from pay \u2212 expenses \u2212 5% save</div>
+        <div class="note"><b>Timeline</b>About 3 months to negotiate. Not a promise they will say yes \u2014 a clear ask from your numbers.</div>
+        <div class="privstrip">Saved on this phone. Progress is the ask you prepared \u2014 not money moved.</div>`,
+      actions: `${primary('Save the package', 'save-package')}${quiet('Make my plan', 'make-plan')}`,
     })
   },
   ft15(state) {
