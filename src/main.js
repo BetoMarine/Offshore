@@ -25,6 +25,8 @@ import {
   planFigures,
   planPartsEntered,
   monthMath,
+  cleanPicture,
+  goalFit,
   saveableGap,
   reduceDue,
   roundCents,
@@ -37,6 +39,7 @@ import {
   blankDraft,
   draftFromLender,
   eraseOffshore,
+  blankLoan,
   freshContract,
   freshState,
   loadState,
@@ -46,7 +49,7 @@ import {
 const LENDER_STEPS = new Set(['o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3'])
 
 let state = loadState()
-let history = [{ screen: state.sundayPack?.started ? 'ft03' : 'o00' }]
+let history = [{ screen: state.sundayPack?.started ? 'cf-resume' : 'o00' }]
 let browserIndex = 1
 let suppress = 0
 
@@ -120,8 +123,13 @@ function retreat() {
 }
 
 function back() {
+  const leaving = route().screen
   const gone = retreat()
   if (!gone) return
+  if (state.returnTo === 'cf08' && (leaving === 'cf03' || leaving === 'cf04' || leaving === 'cf05')) {
+    state.returnTo = null
+    saveState(state)
+  }
   moveBrowser(-gone)
 }
 
@@ -205,7 +213,16 @@ function finishPlan() {
 }
 
 function setField(path, value) {
-  const [head, tail] = path.split('.')
+  const parts = path.split('.')
+  if (parts[0] === 'lenders' && parts.length === 3) {
+    const lender = state.lenders[Number(parts[1])]
+    if (!lender) return
+    lender[parts[2]] = value
+    if (parts[2] === 'overdueAmount') lender.overdue = value !== ''
+    if (parts[2] === 'interest' && value !== '') lender.interestUnknown = false
+    return
+  }
+  const [head, tail] = parts
   if (tail) state[head][tail] = value
   else state[head] = value
 }
@@ -240,6 +257,26 @@ function canAdvance() {
     case 'o06': return state.home !== '' && !tooBigMoney(state.home)
     case 'o07': return state.otherBills !== '' && !tooBigMoney(state.otherBills)
     case 'o08': return state.you !== '' && !tooBigMoney(state.you)
+    case 'cf01': return state.pay !== '' && !tooBigMoney(state.pay)
+    case 'cf03': {
+      const loans = state.lenders || []
+      if (!loans.length) return false
+      return loans.every((lender) => lender.name.trim() !== '' && lender.left !== '' && lender.due !== '' && !tooBigMoney(lender.left) && !tooBigMoney(lender.due) && !tooBigMoney(lender.overdueAmount))
+    }
+    case 'cf-line': {
+      const lender = (state.lenders || [])[item.index || 0]
+      if (!lender) return false
+      if (item.field === 'name') return lender.name.trim() !== ''
+      if (item.field === 'left') return lender.left !== '' && !tooBigMoney(lender.left)
+      if (item.field === 'due') return lender.due !== '' && !tooBigMoney(lender.due)
+      if (item.field === 'next' || item.field === 'overdue') return !tooBigMoney(lender.overdueAmount)
+      if (item.field === 'interest') return lender.interest === '' || money(lender.interest) <= MAX_RATE
+      return true
+    }
+    case 'cf04': return state.home !== '' && !tooBigMoney(state.home)
+    case 'cf05': return state.otherBills !== '' && !tooBigMoney(state.otherBills)
+    case 'cf06': return state.you !== '' && !tooBigMoney(state.you)
+    case 'cf11': return state.goalDraft.name.trim() !== '' && state.goalDraft.amount !== '' && state.goalDraft.by !== '' && !tooBigMoney(state.goalDraft.amount)
     case 'o23': return state.fundDraft.amount !== '' && !tooBigMoney(state.fundDraft.amount)
     case 'o24': return state.fundDraft.by !== ''
     case 'o25': return state.fundDraft.monthly !== '' && !tooBigMoney(state.fundDraft.monthly)
@@ -446,11 +483,71 @@ function saveGoal() {
   go('o30', { goalIndex: index })
 }
 
+function finishActions() {
+  const pic = cleanPicture(state)
+  if (pic?.fits) return go('cf10')
+  const month = monthMath(state)
+  if (month && !month.fits) return go('ft18')
+  if (month?.fits) return go('ft16')
+  return undefined
+}
+
+function saveCleanGoal(tight) {
+  const pic = cleanPicture(state)
+  const goal = {
+    name: state.goalDraft.name.trim(),
+    amount: state.goalDraft.amount,
+    by: state.goalDraft.by,
+    tight: !!tight,
+    left: pic?.left ?? 0,
+  }
+  const index = state.goalDraft.index
+  if (index >= 0 && state.goals[index]) state.goals[index] = goal
+  else {
+    state.goals.push(goal)
+    state.goalDraft.index = state.goals.length - 1
+  }
+  state.cleanGoal = goal
+  saveState(state)
+  go('cf13')
+}
+
+function finishCleanGoal() {
+  const pic = cleanPicture(state)
+  const fit = goalFit(pic?.left || 0, state.goalDraft.amount, state.goalDraft.by)
+  if (!fit.fits) return go('cf12')
+  return saveCleanGoal(false)
+}
+
 function next() {
   if (!canAdvance()) return
   const item = route()
   const backToPlan = state.returnTo === 'plan'
   switch (item.screen) {
+    case 'cf00': return go('cf01')
+    case 'cf01': return go('cf02')
+    case 'cf07': return go('cf08')
+    case 'cf-line': return back()
+    case 'cf03':
+      if (state.returnTo === 'cf08') {
+        state.returnTo = null
+        return back()
+      }
+      return go('cf04')
+    case 'cf04':
+      if (state.returnTo === 'cf08') {
+        state.returnTo = null
+        return back()
+      }
+      return go('cf05')
+    case 'cf05':
+      if (state.returnTo === 'cf08') {
+        state.returnTo = null
+        return back()
+      }
+      return go('cf06')
+    case 'cf06': return go('cf07')
+    case 'cf11': return finishCleanGoal()
     case 'o02':
       if (backToPlan) {
         state.returnTo = null
@@ -570,7 +667,7 @@ function onClick(event) {
   const act = el.dataset.act
   if (act === 'back') return back()
   if (act === 'exit' || act === 'home') return home()
-  if (act === 'start') return go(canResume() ? 'ft14' : 'o01')
+  if (act === 'start') return go(state.sundayPack?.started ? 'cf-resume' : 'cf00')
   if (act === 'erase') return go('o34')
   if (act === 'erase-yes') return doErase()
   if (act === 'keep') return back()
@@ -615,6 +712,15 @@ function onClick(event) {
     return go('o05')
   }
   if (act === 'interest-unknown') {
+    if (route().screen === 'cf-line') {
+      const lender = state.lenders[route().index || 0]
+      if (lender) {
+        lender.interestUnknown = true
+        lender.interest = ''
+      }
+      saveState(state)
+      return back()
+    }
     state.draft.interestUnknown = true
     state.draft.interest = ''
     return go('o02e')
@@ -725,7 +831,72 @@ function onClick(event) {
     return go('o23')
   }
   if (act === 'cushion-else') return saveableGap(state) ? go('ft05') : go(planScreen())
-  if (act === 'sunday-pack') return undefined
+  if (act === 'sunday-pack') {
+    state.sundayPack = { ...(state.sundayPack || {}), started: true }
+    saveState(state)
+    if (route().screen === 'cf08') return go('cf09')
+    return undefined
+  }
+  if (act === 'cf-yes') {
+    state.owes = true
+    if (!state.lenders.length) state.lenders.push(blankLoan())
+    saveState(state)
+    return go('cf03')
+  }
+  if (act === 'cf-no') {
+    state.owes = false
+    state.lenders = []
+    saveState(state)
+    return go('cf04')
+  }
+  if (act === 'cf-change') {
+    state.returnTo = 'cf08'
+    if (el.dataset.part === 'home') return go('cf04')
+    if (el.dataset.part === 'bills') return go('cf05')
+    return go('cf03')
+  }
+  if (act === 'cf-line') return go('cf-line', { index: Number(el.dataset.index) || 0, field: el.dataset.field })
+  if (act === 'cf-freq') {
+    const lender = state.lenders[Number(el.dataset.index)]
+    if (lender) lender.freq = el.dataset.value
+    saveState(state)
+    return paintOnly()
+  }
+  if (act === 'paper-cycle') {
+    const lender = state.lenders[Number(el.dataset.index)]
+    const key = el.dataset.paper
+    if (!lender || !key) return undefined
+    if (!lender.papers) lender.papers = { writing: 'unsure', rate: 'unsure', licence: 'unsure', hold: 'unsure', take: 'unsure' }
+    const order = ['unsure', 'yes', 'no']
+    const cur = order.includes(lender.papers[key]) ? lender.papers[key] : 'unsure'
+    lender.papers[key] = order[(order.indexOf(cur) + 1) % order.length]
+    saveState(state)
+    return paintOnly()
+  }
+  if (act === 'loan-add') {
+    state.lenders.push(blankLoan())
+    state.owes = true
+    saveState(state)
+    return paintOnly()
+  }
+  if (act === 'cf-done') return finishActions()
+  if (act === 'cf-back-actions') return back()
+  if (act === 'cf-goal') {
+    state.goalDraft = { name: '', amount: '', by: '', index: -1 }
+    return go('cf11')
+  }
+  if (act === 'cf-move-date') {
+    const pic = cleanPicture(state)
+    const fit = goalFit(pic?.left || 0, state.goalDraft.amount, state.goalDraft.by)
+    if (fit.suggest) state.goalDraft.by = fit.suggest
+    return saveCleanGoal(false)
+  }
+  if (act === 'cf-keep-date') return saveCleanGoal(true)
+  if (act === 'cf-goal-done') {
+    state.goalDraft = { name: '', amount: '', by: '', index: -1 }
+    return resetToStart()
+  }
+  if (act === 'cf-resume-continue') return go('cf08')
   if (act === 'see-fix') {
     if (route().screen !== 'ft00') return go('ft00')
     if (!partsReady()) return go('o05')

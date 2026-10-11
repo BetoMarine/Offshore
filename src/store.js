@@ -64,6 +64,24 @@ function freshChecks(month = currentMonthKey()) {
   }
 }
 
+export function blankLoan() {
+  return {
+    name: '',
+    left: '',
+    interest: '',
+    interestPeriod: 'month',
+    interestUnknown: true,
+    due: '',
+    freq: 'monthly',
+    nextDate: '',
+    overdue: false,
+    overdueAmount: '',
+    overdueSince: '',
+    paidOnTime: null,
+    papers: { writing: 'unsure', rate: 'unsure', licence: 'unsure', hold: 'unsure', take: 'unsure' },
+  }
+}
+
 export function blankDraft() {
   return {
     name: '',

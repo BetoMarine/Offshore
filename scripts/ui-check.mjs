@@ -6,15 +6,12 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/thirteenth'
+const prefix = '/Offshore/preview/fourteenth'
 const sundayPackUrl = 'https://betomarine.github.io/debtrenegociation1/sunday/'
 const shots = '/opt/cursor/artifacts'
 const required = [
-  'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
-  'o03', 'o04', 'o05', 'o06', 'o07', 'o08', 'o09', 'o10', 'o11', 'o12',
-  'o13', 'o14', 'o15', 'o16', 'o17', 'o18', 'o19', 'o20', 'o21', 'o22a', 'o22b',
-  'o23', 'o24', 'o25', 'o26', 'o27', 'o28', 'o29', 'o30', 'o31', 'o32', 'o33', 'o34', 'o35', 'parts', 'o02r',
-  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'ft00', 'ft05', 'ft07', 'ft10', 'ft14', 'ft15', 'ft16', 'ft18', 'papers', 'papers-who', 'send', 'l20', 'l24',
+  'o00', 'o34', 'cf00', 'cf01', 'cf02', 'cf03', 'cf-line', 'cf04', 'cf05', 'cf06', 'cf07', 'cf08', 'cf09',
+  'cf-resume', 'cf10', 'cf11', 'cf12', 'cf13', 'ft16', 'ft15', 'ft18',
 ]
 
 const types = {
@@ -267,7 +264,8 @@ async function openLivePack() {
   if (!isLivePackUrl(url)) throw new Error(`Sunday Pack on ${before} opened ${url}`)
   const after = await page.$eval('#app', (el) => el.dataset.screen)
   const text = await bodyText()
-  if (after !== before) throw new Error(`Sunday Pack left ${before} for ${after}:\n${text}`)
+  const packConfirm = before === 'cf08' && after === 'cf09'
+  if (!packConfirm && after !== before) throw new Error(`Sunday Pack left ${before} for ${after}:\n${text}`)
   if (/A helper will be named|helper will be found|cannot help/i.test(text)) {
     throw new Error(`Sunday Pack stayed on a helper dead end:\n${text}`)
   }
@@ -306,1020 +304,217 @@ try {
   if (!(await bodyText()).includes('The plan stays on this phone. Your progress can be saved.')) {
     throw new Error('privacy line does not match the locked strip')
   }
-  await shot('start.png')
 
-  await clickText('Erase my data')
-  await clickText('Keep my data')
-
-  await clickText('Start')
-  await page.goBack()
-  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
-  await mark()
-  if (!page.url().includes(prefix)) throw new Error(`browser back left the app: ${page.url()}`)
-
-  await clickText('Start')
-  await clickSel('[data-door="fix"]')
-  await fill('Amount', '10000000')
-  if (!(await page.$eval('[data-act="next"]', (el) => el.disabled))) throw new Error('huge amount was allowed')
-  if (!(await bodyText()).includes('That number is too big.')) throw new Error('missing cap message')
-  await fill('Amount', '5220')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Who', 'Card')
-  await clickText('Next')
-  await fill('Amount', '8000')
-  await clickText('Next')
-  await fill('Interest', '3')
-  await clickText('Next')
-  await fill('Amount', '500')
-  await clickText('Next')
-  await fill('Next date', '2026-10-01')
-  if (await page.$eval('[data-act="next"]', (el) => el.disabled)) throw new Error('past due blocked Next')
-  if (!(await bodyText()).includes('That date has passed. This payment is late.')) throw new Error('past date hint missing')
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o02g') {
-    throw new Error('a passed due skipped yes or no')
+  async function onScreen(id) {
+    const screen = await page.$eval('#app', (el) => el.dataset.screen)
+    if (screen !== id) throw new Error(`expected ${id} got ${screen}:\n${await bodyText()}`)
+    return screen
   }
-  await clickSel('[data-act="back"]')
-  await fill('Next date', '2026-10-25')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Amount', '500')
-  await clickText('Next')
-  await fill('Overdue since', '2026-09-25')
-  await clickText('Next')
-
-  await clickSel('[data-act="back"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o02a') {
-    throw new Error('back after save did not return to who you owe')
-  }
-  await clickText('Yes')
-
-  let text = await bodyText()
-  if (!text.includes('About HK$240 interest a month')) throw new Error(`interest line missing:\n${text}`)
-  if (!text.includes('Overdue HK$500 since 25 Sep')) throw new Error(`overdue line missing:\n${text}`)
-  await clickText('Add another')
-  await fill('Who', 'Cousin Ana')
-  await clickText('Next')
-  await fill('Amount', '4000')
-  await clickText('Next')
-  await clickText("I don't know")
-  await clickSel('[data-act="back"]')
-  await fill('Interest', '4')
-  if ((await page.$eval('[aria-label="Interest"]', (el) => el.value)) !== '4') {
-    throw new Error('a rate typed after I don\'t know was dropped')
-  }
-  await clickText("I don't know")
-  await fill('Amount', '60')
-  await clickText('Weekly')
-  await clickText('Next')
-  await fill('Next date', '2026-10-10')
-  await clickText('Next')
-  await clickText('No')
-  text = await bodyText()
-  if (!text.includes('Nothing overdue')) throw new Error(`second lender overdue copy:\n${text}`)
-  if ((text.split('About HK$').length - 1) !== 1) throw new Error(`interest should be one fact:\n${text}`)
-  await clickSel('[data-act="edit-lender"][data-index="0"]')
-  await clickSel('[data-act="back"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o02h') throw new Error('edit back left the summary')
-
-  await clickSel('[data-act="edit-lender"][data-index="1"]')
-  await clickText('Next')
-  await clickText('Next')
-  await fill('Interest', '4')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('No')
-  text = await bodyText()
-  if (!text.includes('About HK$160 interest a month')) throw new Error(`typed rate did not win:\n${text}`)
-
-  await clickText('Add another')
-  await fill('Who', 'Shop')
-  await clickText('Next')
-  await fill('Amount', '100.10')
-  await clickText('Next')
-  await clickText("I don't know")
-  await fill('Amount', '433.33')
-  if ((await page.$eval('[aria-label="Amount"]', (el) => el.value)) !== '433.33') {
-    throw new Error('weekly amount dropped the decimal point')
-  }
-  await clickText('Weekly')
-  await clickText('Next')
-  await fill('Next date', '2026-11-02')
-  await clickText('Next')
-  await clickText('No')
-  text = await bodyText()
-  if (!text.includes('HK$433.33')) throw new Error(`decimal due not shown:\n${text}`)
-  await clickSel('[data-act="remove-lender"][data-index="2"]')
-  await clickText('Remove')
-  text = await bodyText()
-  if (text.includes('Shop')) throw new Error('removed lender still listed')
-
-  const cents = [
-    ['One', '10.01'],
-    ['Two', '20.02'],
-    ['Three', '30.03'],
-    ['Four', '40.04'],
-    ['Five', '50.05'],
-  ]
-  for (const [name, amount] of cents) {
-    await clickText('Add another')
-    await fill('Who', name)
-    await clickText('Next')
-    await fill('Amount', amount)
-    await clickText('Next')
-    await clickText("I don't know")
-    await fill('Amount', amount)
-    await clickText('Next')
-    await fill('Next date', '2026-11-01')
-    await clickText('Next')
-    await clickText('No')
-  }
-  await clickText("That's all")
-  text = await bodyText()
-  if (!text.includes('You owe HK$12,150.15 in total.')) throw new Error(`cent total:\n${text}`)
-  await clickText('Change')
-  for (let i = 0; i < cents.length; i += 1) {
-    await clickSel('[data-act="remove-lender"][data-index="2"]')
-    await clickText('Remove')
-  }
-  await shot('lender-loop.png')
-  await clickText("That's all")
-  text = await bodyText()
-  if (!text.includes('You owe HK$12,000 in total.')) throw new Error(text)
-  await clickText('Next')
-  text = await bodyText()
-  if (!text.includes('You pay HK$760 a month.')) throw new Error(text)
-  if (!text.includes('HK$260')) throw new Error(text)
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('short path did not stop on your pay, your plan')
-  text = await bodyText()
-  if (!text.includes('Your pay, your plan') || !text.includes('We only use what you enter. Loan dues stay on Card.')) {
-    throw new Error(`plan intro copy missing:\n${text}`)
-  }
-  if (!text.includes('Start my plan') || !text.includes('Keep for now')) {
-    throw new Error(`plan intro actions missing:\n${text}`)
-  }
-  if (/spent|what are you doing/i.test(text)) throw new Error(`plan intro invented spend:\n${text}`)
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  const packLoud = await page.$eval('[data-act="sunday-pack"]', (el) => ({
-    primary: el.classList.contains('primary'),
-    quiet: el.classList.contains('quiet'),
-    text: el.textContent.replace(/\s+/g, ' ').trim(),
-  }))
-  if (!packLoud.primary || packLoud.quiet || packLoud.text !== 'Sunday Pack') {
-    throw new Error(`Sunday Pack is not the clay primary on your pay, your plan: ${JSON.stringify(packLoud)}`)
-  }
-  const startQuiet = await page.$eval('[data-act="to-home"]', (el) => el.classList.contains('quiet') && !el.classList.contains('primary'))
-  if (!startQuiet) throw new Error('Start my plan is not quiet under Sunday Pack')
-  const introFits = await page.evaluate(() => {
-    const content = document.querySelector('.content')
-    const pack = document.querySelector('[data-act="sunday-pack"]')
-    const rect = pack.getBoundingClientRect()
-    return {
-      scrolled: content.scrollTop,
-      overflows: content.scrollHeight > content.clientHeight + 8,
-      packTop: Math.round(rect.top),
-      packBottom: Math.round(rect.bottom),
-      view: window.innerHeight,
+  async function mustInclude(bits) {
+    const text = await bodyText()
+    const screen = await page.$eval('#app', (el) => el.dataset.screen)
+    for (const bit of bits) {
+      if (!text.includes(bit)) throw new Error(`missing "${bit}" on ${screen}:\n${text}`)
     }
-  })
-  if (introFits.scrolled || introFits.overflows || introFits.packBottom > introFits.view || introFits.packTop < 0) {
-    throw new Error(`short-path Pack needs a scroll: ${JSON.stringify(introFits)}`)
+    return text
   }
-  await shot('o05-sunday-pack.png')
-  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('Sunday Pack left your pay, your plan')
-  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-  await page.setViewport({ width: 390, height: 664, deviceScaleFactor: 1 })
-  const fitted = await page.evaluate(() => {
-    const button = document.querySelector('.actions .btn')
-    const rect = button.getBoundingClientRect()
-    return rect.top >= 0 && rect.bottom <= window.innerHeight + 1
-  })
-  if (!fitted) throw new Error('plan intro button is off a 390 by 664 screen')
-  const longFit = await page.evaluate(() => {
-    const content = document.querySelector('.content')
-    const extra = document.createElement('p')
-    extra.className = 'body'
-    extra.textContent = 'A long line of words. '.repeat(80)
-    content.append(extra)
-    const button = document.querySelector('.actions .btn')
-    const overflows = content.scrollHeight > content.clientHeight + 8
-    const rect = button.getBoundingClientRect()
-    extra.remove()
-    return { overflows, buttonStays: rect.bottom <= window.innerHeight + 1 && rect.top >= 0 }
-  })
-  if (!longFit.overflows || !longFit.buttonStays) throw new Error(`long text did not keep the button reachable ${JSON.stringify(longFit)}`)
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
-  await clickText('Start my plan')
-  await typeMoney('Amount', '2000')
-  await clickText('Next')
-  text = await bodyText()
-  if (!text.includes('How much for your other bills each month?')) throw new Error(`bills question missing:\n${text}`)
-  if (!text.includes('What you owe stays on each card.')) throw new Error(`bills body missing:\n${text}`)
-  if (!text.includes('Bills part: HK$0')) throw new Error(`bills were prefilled:\n${text}`)
-  if (!text.includes('Only what you type here. Loan dues stay on Card.')) throw new Error(`bills read-back missing:\n${text}`)
-  if (/Includes .*for what you owe|Catch up/i.test(text)) throw new Error(`dues leaked into bills:\n${text}`)
-  await typeMoney('Amount', '500')
-  text = await bodyText()
-  if (!text.includes('Bills part: HK$500')) throw new Error(`bills did not stay other-only:\n${text}`)
-  if (text.includes('HK$1,760') || text.includes('HK$1,260')) throw new Error(`dues were added into bills:\n${text}`)
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft16') throw new Error('fitting month did not open after bills')
-  text = await bodyText()
-  if (!text.includes('This month fits') || !text.includes('Left is room for a cushion.') || !text.includes('HK$1,960') || !text.includes('HK$760')) {
-    throw new Error(`main month fit:\n${text}`)
+  async function mustExclude(bits) {
+    const text = await bodyText()
+    const screen = await page.$eval('#app', (el) => el.dataset.screen)
+    for (const bit of bits) {
+      if (text.includes(bit)) throw new Error(`unexpected "${bit}" on ${screen}:\n${text}`)
+    }
+    return text
   }
-  if (text.includes('HK$1,260') || /you will save|save HK\$/i.test(text)) throw new Error(`month invented spend or a promised save:\n${text}`)
+  async function replaceMoney(label, value) {
+    await page.waitForSelector(`[aria-label="${label}"]`)
+    await page.$eval(`[aria-label="${label}"]`, (el) => {
+      el.focus()
+      el.value = ''
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await typeMoney(label, value)
+  }
+  async function erase() {
+    const screen = await page.$eval('#app', (el) => el.dataset.screen)
+    if (screen !== 'o00') await clickSel('[data-act="exit"]')
+    await onScreen('o00')
+    await clickText('Erase my data')
+    await onScreen('o34')
+    await clickText('Erase everything')
+    await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
+    await mark()
+  }
+  async function line(field) {
+    await clickSel(`[data-act="cf-line"][data-field="${field}"]`)
+    await onScreen('cf-line')
+  }
+  async function enterFlow({ pay, loan, due, left, overdue, home, bills, keep }) {
+    await clickText('Start')
+    await onScreen('cf00')
+    await mustInclude(['Where are you right now?', 'Money is tight right now', 'Most people start here.'])
+    await mustExclude(['I’m OK. I want savings.', 'I have savings. I want goals.'])
+    await clickText('Next')
+    await onScreen('cf01')
+    await fill('Amount', '10000000')
+    if (!(await page.$eval('[data-act="next"]', (el) => el.disabled))) throw new Error('huge amount was allowed')
+    await fill('Amount', '')
+    await typeMoney('Amount', pay)
+    await clickText('Next')
+    await onScreen('cf02')
+    await mustInclude(['Do you have a loan?', 'Loans, cards, or money from family or friends.'])
+    if (loan) {
+      await clickText('Yes')
+      await onScreen('cf03')
+      await mustInclude(['Your loan · one place', 'Details and papers together. Tap a line to change.', 'We are not lawyers. Facts stay on this phone.'])
+      await line('name')
+      await fill('Who', 'Card')
+      await clickText('Next')
+      await onScreen('cf03')
+      await line('left')
+      await typeMoney('Left to pay', left)
+      await clickText('Next')
+      await line('due')
+      await typeMoney('Due each time', due)
+      await clickText('Next')
+      if (overdue) {
+        await line('next')
+        await fill('Next date', '2026-10-25')
+        await typeMoney('Overdue', overdue)
+        await clickText('Next')
+      }
+      await mustInclude(['Not sure', 'In writing?', 'Hold passport / phone / card?'])
+      await clickText('Next')
+    } else {
+      await clickText('No')
+      await onScreen('cf04')
+      await clickSel('[data-act="back"]')
+      await onScreen('cf02')
+      await clickText('No')
+    }
+    await onScreen('cf04')
+    await mustInclude(['Expenses · 1 of 3 · Home', 'How much will you send home each month?'])
+    await typeMoney('Amount', home)
+    await clickText('Next')
+    await onScreen('cf05')
+    await mustExclude(['Bills part:'])
+    await mustInclude(['Expenses · 2 of 3 · Bills', 'Only what you type here.'])
+    if (loan) await mustInclude(['Loan dues stay on Card.'])
+    await typeMoney('Amount', bills)
+    await clickText('Next')
+    await onScreen('cf06')
+    await mustInclude(['Expenses · 3 of 3 · Keep', 'How much will you keep for yourself?'])
+    await typeMoney('Amount', keep)
+    await clickText('Next')
+    await onScreen('cf07')
+  }
+
+  await shot('start.png')
+  await enterFlow({ pay: '5220', loan: true, due: '1200', left: '8000', overdue: '2400', home: '2500', bills: '800', keep: '1000' })
+  await mustInclude(['Your full picture', 'Pay', 'Installment', 'HK$1,200', 'Send home', 'HK$2,500', 'Bills', 'HK$800', 'Keep', 'HK$1,000', 'HK$\u2212280', 'Card', 'Overdue HK$2,400', 'Interest not known', 'Nothing invented. Change any part next.'])
+  await mustExclude(['Bills part:', 'A helper will be named'])
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await shot('cf07-your-now.png')
+  await clickText('Take actions')
+  await onScreen('cf08')
+  await mustInclude(['What can you change?', 'Change send home', 'HK$2,500 now', 'Change bills', 'HK$800 now', 'Change loan', 'Installment HK$1,200', 'overdue HK$2,400', 'For your day off · opens live Pack'])
+  await shot('cf08-take-actions.png')
+  await openLivePack()
+  await onScreen('cf09')
+  await mustInclude(['Pack is on for next time', 'Flag set on this phone. Live Pack:', sundayPackUrl, 'Resume your day-off pack'])
+  await mustExclude(['A helper will be named', 'helper will be found', 'For your day off'])
+  await shot('cf09-pack-flag.png')
+
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('h1')
+  await mark()
+  await onScreen('cf-resume')
+  const resumeH1 = await page.$eval('h1', (el) => el.textContent.trim())
+  if (resumeH1 !== 'Pick up your day-off pack') throw new Error(`cold open was ${resumeH1}`)
+  await mustInclude(['You started this'])
+  await mustExclude(['For your day off', 'A helper will be named', 'helper will be found'])
+  await shot('cf-resume.png')
+  await clickText('Continue')
+  await onScreen('cf08')
+  await mustInclude(['You started this · pick it up'])
+  await mustExclude(['For your day off'])
+
+  await clickText('Change send home')
+  await onScreen('cf04')
+  await replaceMoney('Amount', '1500')
+  await clickText('Next')
+  await onScreen('cf08')
+  await clickText('Done')
+  await onScreen('cf10')
+  await mustInclude(['Room for a goal', 'Pay', 'HK$5,220', 'Out', 'HK$4,500', 'Left', 'HK$720', 'Better to save than to loan', 'Use what’s left toward a goal — not a new loan.'])
+  await shot('cf10-room-goal.png')
+  await clickText('Plan a goal')
+  await onScreen('cf11')
+  await fill('Goal name', 'Ticket home')
+  await fill('Amount', '3000')
+  await fill('Month', '2026-12')
+  await clickText('Next')
+  await onScreen('cf12')
+  await mustInclude(['That date is tight', 'HK$720 left each month', 'HK$3,000 by December may not fit.', 'Try March 2027', 'Better to save than to loan', 'Don’t borrow to hit the date. Stretch the date instead.'])
+  await shot('cf12-date-tight.png')
+  await clickText('Keep this date')
+  await onScreen('cf13')
+  await mustInclude(['Ticket home', 'HK$3,000', 'by December 2026', 'That date is tight', 'Better to save than to loan', 'From Left HK$720 a month'])
+  await clickSel('[data-act="back"]')
+  await onScreen('cf12')
+  await clickText('Move the date')
+  await onScreen('cf13')
+  await mustInclude(['Ticket home', 'by March 2027', 'From Left HK$720 a month · nothing invented', 'Emergency money is not counted here', 'Better to save than to loan', 'Saved on this phone. The plan stays on this phone. Your progress can be saved.'])
+  await mustExclude(['That date is tight'])
+  await shot('cf13-goal-saved.png')
+  await clickText('Done')
+  await onScreen('o00')
+
+  await erase()
+  await enterFlow({ pay: '5220', loan: true, due: '1200', left: '8000', overdue: '2400', home: '2500', bills: '800', keep: '1000' })
+  await clickText('Take actions')
+  await onScreen('cf08')
+  await clickText('Done')
+  await onScreen('ft16')
+  await mustInclude(['This month fits', 'Left', 'HK$720'])
+  await mustExclude(['HK$\u2212280', 'Room for a goal'])
+  const fitRows = await page.$$eval('.row', (rows) => rows.map((row) => row.innerText.replace(/\s+/g, ' ').trim()))
+  if (fitRows.some((row) => row.startsWith('You'))) throw new Error(`FT16 invented You: ${fitRows.join(' | ')}`)
   await shot('ft16-month-fits.png')
   await clickText('Start a cushion')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`cushion did not land on room to save:\n${text}`)
-  if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month')) throw new Error(`room feel missing:\n${text}`)
-  if (!text.includes('Pay you entered · Out from what you entered. Nothing we made up.') || !text.includes('Left is room to start saving.')) {
-    throw new Error(`room copy missing:\n${text}`)
-  }
-  if (!text.includes('HK$1,960') || !text.includes('HK$760') || !text.includes('HK$500') || !text.includes('Installment') || !text.includes('Send home')) {
-    throw new Error(`room numbers:\n${text}`)
-  }
-  if (text.includes('You') || text.includes('HK$0') || text.includes('HK$2,720') || text.includes('HK$1,260')) {
-    throw new Error(`room invented You or dropped the installment:\n${text}`)
-  }
-  await shot('ft15-room-to-save.png')
-  await clickText('See where it can go')
-  await clickText('Put toward You')
-  await fill('Amount', '1000')
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'ft00') {
-    text = await bodyText()
-    if (!text.includes('We can still make a plan') || !text.includes('Pay yourself first')) {
-      throw new Error(`warm entry missing:\n${text}`)
-    }
-    if (/cannot help|money helpers|no next step/i.test(text)) throw new Error(`warm entry blocked help:\n${text}`)
-    if (!(await page.$('[data-act="sunday-pack"]')) || !(await page.$('[data-act="lessons"]'))) {
-      throw new Error('warm entry hid Sunday Pack or lessons')
-    }
-    const warmPack = await page.$eval('[data-act="sunday-pack"]', (el) => el.classList.contains('primary'))
-    const warmDoor = await page.$eval('[data-act="see-fix"]', (el) => el.classList.contains('packdoor'))
-    if (!warmPack || !warmDoor) throw new Error('warm entry Pack is not the clay primary above the full-width door')
-    await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-    await assertShown('sunday-pack')
-    await assertShown('lessons')
-    await shot('ft00-sunday-pack.png')
-    await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
-    await assertShown('sunday-pack')
-    await assertShown('lessons')
-    await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-    await openLivePack()
-    if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft00') throw new Error('Sunday Pack left the warm entry')
-    await tapAct('lessons')
-    text = await bodyText()
-    if (!text.includes('Manage your own money')) throw new Error(`warm Lessons did nothing:\n${text}`)
-    await clickSel('[data-act="back"]')
-    if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft00') throw new Error('Lessons back left the warm entry')
-    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
-    await clickText('See what you can do')
-  }
-  text = await bodyText()
-  if (!text.includes('HK$1,720')) throw new Error(`left used dues as spend:\n${text}`)
-  if (!text.includes('Still late') || !text.includes('HK$500')) {
-    throw new Error(`a plan that fits hid the late amount:\n${text}`)
-  }
-  if (!text.includes('Left is in your plan. Place it when you want')) {
-    throw new Error(`leftover line missing:\n${text}`)
-  }
-  if (!text.includes('Your plan for this month')) throw new Error(`plan title missing:\n${text}`)
-  const planDoor = await page.$eval('[data-act="sunday-pack"]', (el) => el.classList.contains('packdoor'))
-  if (!planDoor) throw new Error('plan Sunday Pack is not the full-width door')
-  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  await shot('plan-sunday-pack.png')
-  await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
-  await clickText("Place what's left")
-  text = await bodyText()
-  if (!text.includes('From your plan. Place it where you want.')) throw new Error(`place missing:\n${text}`)
-  if (/what are you doing|cannot help/i.test(text)) throw new Error(`place jar:\n${text}`)
-  await clickSel('[data-act="place-cushion"]')
-  text = await bodyText()
-  if (!text.includes('HK$1,720')) throw new Error(`cushion changed the left:\n${text}`)
-  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o09') throw new Error('plan Sunday Pack left the plan')
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
-  await shot('plan-summary.png')
-  await clickText('Change a part')
-  await clickSel('[data-part="bills"]')
-  await fill('Amount', '800')
-  text = await bodyText()
-  if (!text.includes('Bills part: HK$800') || text.includes('for what you owe')) throw new Error(`bills edit added dues:\n${text}`)
-  await clickText('Next')
-  text = await bodyText()
-  if (!text.includes('HK$1,420')) throw new Error(`left did not follow other bills:\n${text}`)
-  await clickText('This is my plan')
-  text = await bodyText()
-  if (!text.includes('Your progress') || !text.includes('Last: you made your plan.')) {
-    throw new Error(`progress line missing:\n${text}`)
-  }
-  if (text.includes('not yet this month')) throw new Error(`progress still said not yet:\n${text}`)
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') throw new Error('month Sunday Pack left the month')
-  if (!(await page.$('[data-act="sunday-pack"]'))) throw new Error('sunday pack missing on the month')
+  await onScreen('ft15')
+  await mustInclude(['Room to save this month', 'Left', 'HK$720'])
+  const roomRows = await page.$$eval('.row', (rows) => rows.map((row) => row.innerText.replace(/\s+/g, ' ').trim()))
+  if (!roomRows.some((row) => row.startsWith('You') && row.includes('HK$1,000'))) throw new Error(`room missed Keep: ${roomRows.join(' | ')}`)
+  if (!roomRows.some((row) => row.startsWith('Left') && row.includes('HK$720'))) throw new Error(`room Left changed: ${roomRows.join(' | ')}`)
+  if (roomRows.some((row) => row.includes('HK$0'))) throw new Error(`room invented zero: ${roomRows.join(' | ')}`)
+  await shot('ft15-room-you.png')
 
-  await clickText('Go to lessons')
-  text = await bodyText()
-  if (!text.includes('Make sure the money is going where it needs to go.')) throw new Error(`lesson story missing:\n${text}`)
-  if (!text.includes('What you send home')) throw new Error(`send-home line missing:\n${text}`)
-  await clickSel('[data-app="ahk"]')
-  await clickText("I'm stuck")
-  await clickText('Back to the step')
-  await clickText('Done, next step')
-  await clickText('Done, next step')
+  await erase()
+  await enterFlow({ pay: '5000', loan: true, due: '2000', left: '8000', home: '2500', bills: '800', keep: '100' })
+  await clickText('Take actions')
   await clickText('Done')
-  await clickText('Not yet')
-  await clickText('Done')
-  await clickText('Yes, I did it')
-  await clickText('Next lesson')
-  await clickText('Done, next step')
-  await clickText('Done, next step')
-  await clickText('Done')
-  await clickText('Yes, I did it')
-  await clickText('Next lesson')
-  text = await bodyText()
-  if (!text.includes('Unverified, check in app.')) throw new Error(`o19 unverified missing:\n${text}`)
-  await clickText('Done')
-  await clickText('Yes, I did it')
-  await clickText('Next lesson')
-  await clickSel('[data-app="gcash"]')
-  await clickText("I'm stuck")
-  await clickText('Skip this step')
-  await clickText('Yes, I did it')
-  await clickText('Next lesson')
-  await clickText('Done')
-  await clickText('Yes, I did it')
-  await clickText('Next lesson')
-  await clickText('Done')
-  await clickText('Yes, I did it')
-  await clickText('Next lesson')
-  await clickText('Done')
-  await clickText('Yes, I did it')
-  await clickText('Next lesson')
-  await clickText('Done')
-  await clickText('Yes, I did it')
-  await clickText('Back to your month')
-  const scoreBeforeHomeChange = await scoreNumber()
-
-  await clickSel('[data-act="today"]')
-  await clickText('Change a part')
-  await clickSel('[data-part="home"]')
-  await fill('Amount', '100')
-  await clickText('Next')
-  await clickText('This is my plan')
-  if (await scoreNumber() !== scoreBeforeHomeChange) throw new Error('score moved when she sent less home')
-
-  await clickSel('[data-act="today"]')
-  await clickText('Change a part')
-  await clickSel('[data-part="home"]')
-  await fill('Amount', '9000')
-  await clickText('Next')
-  text = await bodyText()
-  if (!text.includes('more than you get')) throw new Error(`over plan missing:\n${text}`)
-  await clickText('Keep for now')
-  if (await scoreNumber() !== scoreBeforeHomeChange) throw new Error('score moved when she sent more home')
-  const sentLine = await bodyText()
-  if (!sentLine.includes('15 of 15') && !sentLine.includes('Sent home')) {
-    await clickSel('[data-act="score"]')
-  }
-  if (page.url()) {
-    const detail = await bodyText()
-    if (!detail.includes('Sent home what you chose') || !detail.includes('15 of 15')) {
-      await clickSel('[data-act="score"]')
-      const breakdown = await bodyText()
-      if (!breakdown.includes('15 of 15')) throw new Error(`sent-home points missing:\n${breakdown}`)
-    }
-  }
-
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o31') {
-    if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o11') await clickSel('[data-act="score"]')
-  }
-  await clickText('Back to your month')
-  await clickText('See your life')
-  if (!(await page.$('[data-act="sunday-pack"]'))) throw new Error('sunday pack missing on your life')
-
-  await clickSel('[data-act="exit"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') throw new Error('exit did not open the first page')
-  await mark()
-  const saved = await page.evaluate(() => localStorage.getItem('offshore-data'))
-  if (!saved || !saved.includes('Cousin Ana')) throw new Error('data was not saved')
-  await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('h1')
-  await mark()
-  const reloaded = await page.evaluate(() => localStorage.getItem('offshore-data'))
-  if (reloaded !== saved) throw new Error('reload dropped saved data')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') throw new Error('reload did not open on the first page')
-
-  await clickText('Start')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft14' || text.includes('Where are you right now?')) {
-    throw new Error(`start with a plan opened a cold where-are-you:\n${text}`)
-  }
-  await clickSel('[data-act="month"]')
-  await clickText('See your life')
-  await clickSel('[data-act="fund"]')
-  await fill('Amount', '6000')
-  await clickText('Next')
-  const fundWhen = await page.evaluate(() => {
-    const now = new Date()
-    const target = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`
-  })
-  await fill('Month', fundWhen)
-  await clickText('Next')
-  await fill('Amount', '500')
-  await clickText('Next')
-  const fund = projectFund({ amount: '6000', by: fundWhen, monthly: '500' }, new Date())
-  text = await bodyText()
-  if (fund.reaches) throw new Error('short fund was treated as on track')
-  if (/on track/i.test(text)) throw new Error(`short fund said on track:\n${text}`)
-  if (!text.includes('You reach this in')) throw new Error(`fund reach date missing:\n${text}`)
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o26') throw new Error('savings Sunday Pack left the fund')
-  await clickText('Done')
-
-  await clickSel('[data-act="exit"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') throw new Error('exit did not open the first page')
-  await mark()
-  await clickText('Start')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft14') throw new Error('goals start skipped the resume')
-  await clickSel('[data-act="month"]')
-  await clickText('See your life')
-  await clickSel('[data-act="goal-new"]')
-  await fill('Goal name', 'School fees')
-  await clickText('Next')
-  await fill('Amount', '2000')
-  await clickText('Next')
-  const goalWhen = await page.evaluate(() => {
-    const now = new Date()
-    const target = new Date(now.getFullYear(), now.getMonth() + 10, 1)
-    return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`
-  })
-  await fill('Month', goalWhen)
-  await clickText('Next')
-  text = await bodyText()
-  if (!text.includes('HK$300 a month still free.')) throw new Error(`first goal took the whole surplus:\n${text}`)
-  if (!text.includes('Your emergency money is not counted here.')) throw new Error(text)
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o30') throw new Error('goals Sunday Pack left the goal')
-  await clickText('Add another goal')
-  await fill('Goal name', 'Fare home')
-  await clickText('Next')
-  await fill('Amount', '8000')
-  await clickText('Next')
-  await fill('Month', goalWhen)
-  await clickText('Next')
-  const goal = projectGoal(
-    {
-      you: '1000',
-      fund: { monthly: '500', amount: '6000' },
-      goals: [
-        { amount: '2000', by: goalWhen },
-        { amount: '8000', by: goalWhen },
-      ],
-    },
-    { amount: '8000', by: goalWhen },
-    new Date(),
-  )
-  text = await bodyText()
-  if (goal.reaches || text.includes('100%')) throw new Error(`second goal claimed the whole surplus:\n${text}`)
-  if (!text.includes('HK$0 a month still free.')) throw new Error(`free surplus missing:\n${text}`)
-  if (!text.includes('You reach this in')) throw new Error(`goal reach date missing:\n${text}`)
-  await clickText('Done')
-  await shot('your-life.png')
-
-  await clickSel('[data-act="today"]')
-  await clickText('Go to lessons')
-  await clickSel('[data-act="back"]')
-  await clickSel('[data-act="owe"]')
-  await clickSel('[data-act="back"]')
-  await clickText('See your life')
-
-  await clickSel('[data-act="today"]')
-  await clickSel('[data-act="owe"]')
-  await clickSel('[data-act="edit-lender"][data-index="0"]')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Next')
-  await fill('Next date', '2026-09-15')
-  if (!(await bodyText()).includes('That date has passed. This payment is late.')) {
-    throw new Error('a past next date had no hint')
-  }
-  await clickText('Next')
-  await clickText('No')
-  text = await bodyText()
-  if (!text.includes('Nothing overdue') || !text.includes('That date has passed')) {
-    throw new Error(`past due after clear missing:\n${text}`)
-  }
-  if (text.includes('Overdue HK$')) throw new Error(`cleared card still showed overdue:\n${text}`)
-  for (let step = 0; step < 6; step += 1) {
-    if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o11') break
-    await clickSel('[data-act="back"]')
-  }
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') {
-    throw new Error('could not return to the month after a past due')
-  }
-  if (!text.includes('That date has passed') || !text.includes('Nothing overdue') || !text.includes('Last: you cleared late.')) {
-    throw new Error(`month hid the passed date or the clear:\n${text}`)
-  }
-  if (text.includes('not yet this month')) throw new Error(`cleared month still said not yet:\n${text}`)
-  await clickSel('[data-act="today"]')
-  await clickSel('[data-act="exit"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') {
-    throw new Error('exit did not open the first page')
-  }
-
-  await clickText('Start')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft14') throw new Error(`start did not resume:\n${text}`)
-  if (!text.includes('Welcome back') || !text.includes('Pick up where you left off') || !text.includes('Your plan is still here. Open what you need.')) {
-    throw new Error(`resume copy missing:\n${text}`)
-  }
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft14') throw new Error('Sunday Pack left the resume')
-  await clickSel('[data-act="resume-plan"]')
-  text = await bodyText()
-  if (!text.includes('Nothing is late.')) throw new Error(`late showed with nothing overdue:\n${text}`)
-  if (!text.includes('more than you get')) throw new Error(`short month missing:\n${text}`)
-  if (await page.$('[data-act="fix-catch"]')) throw new Error('catch up showed when nothing was late')
-  if (!(await page.$('[data-act="fix-fit"]'))) throw new Error('make this month fit was missing')
-  if (!(await page.$('[data-act="fix-fund"]'))) throw new Error('start the fund now was missing')
-  await clickSel('[data-act="fix-fund"]')
-  await clickSel('[data-act="fund-pick"][data-index="0"]')
-  await fill('Less', '200')
-  text = await bodyText()
-  if (!text.includes('due becomes HK$300')) throw new Error(`fund less did not drop the due:\n${text}`)
-  await clickText('Start my fund')
-  const fundFix = await page.evaluate(() => {
-    const data = JSON.parse(localStorage.getItem('offshore-data'))
-    return {
-      due: data.lenders[0].due,
-      overdue: data.lenders[0].overdue,
-      monthly: data.fund.monthly,
-      amount: data.fund.amount,
-      by: data.fund.by,
-      fromFix: data.fund.fromFix,
-      catchUp: data.catchUp,
-    }
-  })
-  if (fundFix.due !== '300' || fundFix.monthly !== '200' || fundFix.fromFix !== true) {
-    throw new Error(`fund from fix ${JSON.stringify(fundFix)}`)
-  }
-  if (fundFix.amount !== '' || fundFix.by !== '' || fundFix.overdue) {
-    throw new Error(`fund from fix changed overdue or set a target ${JSON.stringify(fundFix)}`)
-  }
-  await clickText('Keep for now')
-  if (!(await page.$('[data-act="sunday-pack"]'))) throw new Error('sunday pack missing on the month')
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') throw new Error('Sunday Pack left the month')
-  text = await bodyText()
-  if (/cannot help|money helpers|no next step|A helper will be named|helper will be found/i.test(text)) throw new Error(`pack blocked help:\n${text}`)
-  await clickText('See your life')
-  text = await bodyText()
-  if (!text.includes('HK$200 a month') || !text.includes('No target yet. You can set one later.')) {
-    throw new Error(`fix fund showed a target:\n${text}`)
-  }
-  if (/on track/i.test(text)) throw new Error(`fix fund said on track:\n${text}`)
-  await clickSel('[data-act="today"]')
-  await clickSel('[data-act="today"]')
-  await clickSel('[data-act="fix-fit"]')
-  await clickSel('[data-act="fit-part"][data-part="home"]')
-  await fill('Cut', '100')
-  await clickText('Update my plan')
-  text = await bodyText()
-  if (!text.includes('The gap is still there. You can cut again.')) throw new Error(`partial cut hid the gap:\n${text}`)
-  if (!text.includes('more than you get')) throw new Error(`partial cut was treated as a fit:\n${text}`)
-  await clickSel('[data-act="fix-fund"]')
-  await clickText('Check this loan’s papers')
-  await clickText('Card')
-  await clickText('No')
-  await clickText('Not sure')
-  await clickText('No')
-  await clickText('Yes')
-  await clickText('Yes')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft07') throw new Error('papers did not open the teach screen')
-  if (!text.includes('You can still get better')) throw new Error(`papers teach missing:\n${text}`)
-  if (!text.includes('We are not lawyers. Split your pay. Pay yourself first.')) throw new Error(`lawyer line missing:\n${text}`)
-  if (/A helper will be named|helper will be found|cannot help/i.test(text)) {
-    throw new Error(`papers teach still has a helper dead end:\n${text}`)
-  }
-  if (!text.includes('See what you can do') || !text.includes('Sunday Pack') || !text.includes('Lessons') || !text.includes('Save the facts')) {
-    throw new Error(`papers teach doors missing:\n${text}`)
-  }
-  const loudPair = await page.$$eval('.teachdoors .door.door-loud', (els) => els.map((el) => el.dataset.act))
-  if (loudPair[0] !== 'sunday-pack' || loudPair[1] !== 'see-fix') {
-    throw new Error(`papers loud doors are not Pack then See what you can do: ${loudPair.join(', ')}`)
-  }
-  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  await shot('ft07-sunday-pack.png')
-  await page.setViewport({ width: 390, height: 568, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft07') throw new Error('Sunday Pack left the papers teach')
-  text = await bodyText()
-  if (/cannot help|money helpers|no next step|what are you doing/i.test(text)) throw new Error(`papers still a wall:\n${text}`)
-  if (/illegal|hotline|https?:/i.test(text)) throw new Error(`papers named a verdict or a contact:\n${text}`)
-  await clickSel('[data-act="papers-save"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft07') throw new Error('save the facts left the teach screen')
-  await clickSel('[data-act="see-fix"]')
-  text = await bodyText()
-  if (!text.includes('We can still make a plan')) throw new Error(`papers did not open a warm entry:\n${text}`)
-  await clickText('See what you can do')
-  if (!(await page.$('[data-act="fix-fit"]'))) throw new Error('papers teach did not reach a fix')
-  await clickText('Done')
-  await clickSel('[data-act="owe"]')
-  await clickSel('[data-act="edit-lender"][data-index="0"]')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Amount', '500')
-  await clickText('Next')
-  await fill('Overdue since', '2026-09-25')
-  await clickText('Next')
-  for (let step = 0; step < 6; step += 1) {
-    if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'o11') break
-    await clickSel('[data-act="back"]')
-  }
-  await clickSel('[data-act="today"]')
-  await clickSel('[data-act="fix-catch"]')
-  await clickSel('[data-act="catch-pick"][data-index="0"]')
-  await fill('Catch up amount', '300')
-  await clickText('Update my plan')
-  text = await bodyText()
-  if (!text.includes('HK$300 toward') || !text.includes('still late by HK$500')) {
-    throw new Error(`catch up plan:\n${text}`)
-  }
-  if (text.includes('for what you owe')) throw new Error(`catch up was added into bills:\n${text}`)
-  await clickText('Mark Card paid')
-  await fill('Paid', '200')
-  await clickText('Mark as paid')
-  text = await bodyText()
-  if (!text.includes('still late by HK$300') || !text.includes('HK$300 toward')) {
-    throw new Error(`partial mark:\n${text}`)
-  }
-  await clickText('Mark Card paid')
-  await fill('Paid', '300')
-  await clickText('Mark as paid')
-  text = await bodyText()
-  if (!text.includes('late is cleared') || !text.includes('HK$300 toward') || text.includes('still late')) {
-    throw new Error(`full mark:\n${text}`)
-  }
-  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers left the plan after late was cleared')
-  if (await page.$('[data-act="fix-catch"]')) throw new Error('catch up stayed after late was cleared')
-  if (!(await page.$('[data-act="fix-fit"]'))) throw new Error('make this month fit hid while the month was still short')
-  await clickSel('[data-act="papers"]')
-  {
-    const opened = await page.$eval('#app', (el) => el.dataset.screen)
-    if (opened !== 'papers' && opened !== 'papers-who') throw new Error('papers did not open after late was cleared')
-  }
-  await clickSel('[data-act="back"]')
-  await clickText('On the app or cash only')
-  await fill('Pay on the app', '9000')
-  await clickText('Continue')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'send') {
-    throw new Error('an app part above the total was saved')
-  }
-  if (!(await bodyText()).includes('The app part cannot be more than the total.')) {
-    throw new Error('too-big app part had no note')
-  }
-  await fill('Pay on the app', '1000')
-  await clickText('Continue')
-  text = await bodyText()
-  if (!text.includes('On the app') || !text.includes('Cash only')) throw new Error(`home split missing:\n${text}`)
-  await clickText('Change a part')
-  await clickSel('[data-part="home"]')
-  await fill('Amount', '100')
-  await clickText('Next')
-  text = await bodyText()
-  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers left a plan that fits')
-  if (await page.$('[data-act="fix-fit"], [data-act="fix-catch"], [data-act="fix-fund"]')) {
-    throw new Error('loud fix doors stayed after the month fit and nothing was late')
-  }
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o09') throw new Error('Sunday Pack left the cleared plan')
-  await clickText('This is my plan')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') throw new Error('plan did not return to the month')
-  if (!text.includes('Your progress') || !text.includes('Last: you cleared late.')) {
-    throw new Error(`cleared progress missing:\n${text}`)
-  }
-  if (text.includes('not yet this month')) throw new Error(`cleared month said not yet:\n${text}`)
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o11') throw new Error('Sunday Pack left the cleared month')
-  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers missing on the month')
-  await clickText('See your life')
-  if (!(await page.$('[data-act="papers"]'))) throw new Error('papers missing on your life')
-  await clickSel('[data-act="back"]')
-  await clickSel('[data-act="owe"]')
-  if (!(await page.$('[data-act="papers-pick"]'))) throw new Error('papers missing on who you owe')
-  await clickSel('[data-act="papers-pick"][data-index="0"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'papers') {
-    throw new Error('the lender row did not open that loan’s papers')
-  }
-  await clickSel('[data-act="exit"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') {
-    throw new Error('exit after fix did not open the first page')
-  }
-
-  await page.evaluate(async () => {
-    localStorage.setItem('planted-app', 'keep')
-    localStorage.setItem('offshore-extra', 'gone')
-    sessionStorage.setItem('planted-session', 'keep')
-    sessionStorage.setItem('offshore-session', 'gone')
-    await new Promise((resolve) => {
-      const open = indexedDB.open('offshore-notes')
-      open.onupgradeneeded = () => open.result.createObjectStore('notes')
-      open.onsuccess = () => { open.result.close(); resolve() }
-    })
-    await new Promise((resolve) => {
-      const open = indexedDB.open('planted-db')
-      open.onsuccess = () => { open.result.close(); resolve() }
-    })
-    const userCache = await caches.open('offshore-user')
-    await userCache.put(new Request('/offshore-marker'), new Response('x'))
-    const otherCache = await caches.open('planted-cache')
-    await otherCache.put(new Request('/planted-marker'), new Response('y'))
-  })
-  await clickText('Erase my data')
-  await clickText('Erase everything')
-  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00' && localStorage.getItem('offshore-data') == null)
-  await mark()
-  const after = await page.evaluate(async () => {
-    const local = []
-    for (let i = 0; i < localStorage.length; i += 1) local.push(localStorage.key(i))
-    const session = []
-    for (let i = 0; i < sessionStorage.length; i += 1) session.push(sessionStorage.key(i))
-    const dbs = (await indexedDB.databases()).map((db) => db.name)
-    const cacheNames = await caches.keys()
-    return {
-      local,
-      session,
-      dbs,
-      cacheNames,
-      planted: localStorage.getItem('planted-app'),
-      plantedSession: sessionStorage.getItem('planted-session'),
-    }
-  })
-  if (after.planted !== 'keep' || after.plantedSession !== 'keep') throw new Error(`planted keys lost ${JSON.stringify(after)}`)
-  if (after.local.some((key) => key.startsWith('offshore-'))) throw new Error(`offshore local keys remain ${after.local}`)
-  if (after.session.some((key) => key.startsWith('offshore-'))) throw new Error(`offshore session keys remain ${after.session}`)
-  if (!after.dbs.includes('planted-db') || after.dbs.includes('offshore-notes')) throw new Error(`databases ${after.dbs}`)
-  if (!after.cacheNames.includes('planted-cache') || after.cacheNames.includes('offshore-user')) throw new Error(`caches ${after.cacheNames}`)
-
-  await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('h1')
-  await mark()
-  const cold = await page.evaluate(() => ({
-    screen: document.querySelector('#app').dataset.screen,
-    data: localStorage.getItem('offshore-data'),
-    planted: localStorage.getItem('planted-app'),
-  }))
-  if (cold.screen !== 'o00' || cold.data != null || cold.planted !== 'keep') throw new Error(`cold reopen ${JSON.stringify(cold)}`)
-  await clickText('Start')
-  await clickSel('[data-door="fix"]')
-  const pay = await page.$eval('[aria-label="Amount"]', (el) => el.value)
-  if (pay !== '') throw new Error(`pay left over: ${pay}`)
-
-  await fill('Amount', '5000')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Who', 'Agency')
-  await clickText('Next')
-  await fill('Amount', '10000')
-  await clickText('Next')
-  await clickText("I don't know")
-  await fill('Amount', '1200')
-  await clickText('Next')
-  await fill('Next date', '2026-11-15')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Amount', '2400')
-  await clickText('Next')
-  await fill('Overdue since', '2026-09-01')
-  await clickText('Next')
-  await clickSel('[data-act="papers-pick"]')
-  for (let n = 0; n < 5; n += 1) await clickText('Not sure')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft07') throw new Error('debt papers did not teach')
-  if (!text.includes('You can still get better')) throw new Error(text)
-  if (/no next step|cannot help|money helpers|what are you doing|spent/i.test(text)) throw new Error(`debt papers wall:\n${text}`)
-  if (text.includes('HK$3,600') || text.includes('HK$1,400') || text.includes('left this month')) {
-    throw new Error(`papers invented spend from dues:\n${text}`)
-  }
-  await clickSel('[data-act="see-fix"]')
-  text = await bodyText()
-  if (!text.includes('We can still make a plan') || !text.includes('Pay yourself first')) throw new Error(text)
-  if (text.includes('HK$3,600') || text.includes('HK$1,400') || /left this month|what are you doing|cannot help/i.test(text)) {
-    throw new Error(`warm entry invented spend:\n${text}`)
-  }
-  await clickText('See what you can do')
-  text = await bodyText()
-  if (!text.includes('We only use what you enter') || !text.includes('Pay HK$5,000') || !text.includes('Loan left HK$10,000')) {
-    throw new Error(`split missing after papers:\n${text}`)
-  }
-  if (!text.includes('Interest not known')) throw new Error(`interest fact missing:\n${text}`)
-  if (/left this month|what are you doing|cannot help/i.test(text) || text.includes('HK$3,600') || text.includes('HK$1,400')) {
-    throw new Error(`plan intro invented leftover:\n${text}`)
-  }
-  await clickText('Start my plan')
-  await clickSel('[data-act="back"]')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('back from home left the plan intro')
-  text = await bodyText()
-  if (/left this month|what are you doing/i.test(text) || text.includes('HK$3,600') || text.includes('HK$1,400')) {
-    throw new Error(`back invented leftover:\n${text}`)
-  }
-  await clickText('Start my plan')
-  await fill('Amount', '500')
-  await clickText('Next')
-  await fill('Amount', '200')
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'ft16') {
-    await clickText('Start a cushion')
-    await clickText('See where it can go')
-    await clickText('Put toward You')
-  }
-  await fill('Amount', '300')
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'ft00') await clickText('See what you can do')
-  text = await bodyText()
-  if (!text.includes('HK$4,000')) throw new Error(`entered plan left missing:\n${text}`)
-  if (/what are you doing|cannot help|no next step/i.test(text)) throw new Error(`plan wall:\n${text}`)
-  if (!(await page.$('[data-act="sunday-pack"]'))) throw new Error('sunday pack missing on the debt plan')
-  if (!(await page.$('[data-act="fix-catch"]'))) throw new Error('debt plan hid catch up')
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o09') throw new Error('debt Sunday Pack left the plan')
-  await clickText('This is my plan')
-  await clickText('Go to lessons')
-  if (!((await bodyText()).includes('Open your own GCash'))) throw new Error('debt path missed lessons')
-  await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('h1')
-  await mark()
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) === 'ft03' || text.includes('Pick up your day-off pack') || /A helper will be named|helper will be found/i.test(text)) {
-    throw new Error(`reload resumed an internal pack:\n${text}`)
-  }
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o00') throw new Error(`reload left the start:\n${text}`)
-
-  await clickSel('[data-act="exit"]')
-  await clickText('Erase my data')
-  await clickText('Erase everything')
-  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
-  await clickText('Start')
-  await clickSel('[data-door="fix"]')
-  await typeMoney('Amount', '5000')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Who', 'Agency')
-  await clickText('Next')
-  await typeMoney('Amount', '10000')
-  await clickText('Next')
-  await clickText("I don't know")
-  await typeMoney('Amount', '1200')
-  await clickText('Next')
-  await fill('Next date', '2026-11-15')
-  await clickText('Next')
-  await clickText('Yes')
-  await typeMoney('Amount', '2400')
-  await clickText('Next')
-  await fill('Overdue since', '2026-09-01')
-  await clickText('Next')
-  await clickText("That's all")
-  await clickText('Next')
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('overdue path missed your pay, your plan')
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
-  await assertShown('sunday-pack')
-  await openLivePack()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('overdue Sunday Pack left your pay, your plan')
-  await clickText('Start my plan')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o06') throw new Error('FT02b did not open Home')
-  await typeMoney('Amount', '1800')
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o07') throw new Error('Home Next did not open Bills')
-  await typeMoney('Amount', '400')
-  text = await bodyText()
-  if (!text.includes('Bills part: HK$400')) throw new Error(`bills did not take the typed amount:\n${text}`)
-  await clickText('Next')
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft16') throw new Error('Home and Bills did not open the fitting month')
-  text = await bodyText()
-  if (!text.includes('This month fits') || text.includes('HK$3,600')) throw new Error(`agency month invented dues:\n${text}`)
-
-  await clickSel('[data-act="exit"]')
-  await clickText('Erase my data')
-  await clickText('Erase everything')
-  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
-  await clickText('Start')
-  await clickSel('[data-door="fix"]')
-  await typeMoney('Amount', '5220')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Who', 'Card')
-  await clickText('Next')
-  await typeMoney('Amount', '10000')
-  await clickText('Next')
-  await clickText("I don't know")
-  await typeMoney('Amount', '1200')
-  await clickText('Next')
-  await fill('Next date', '2026-11-20')
-  await clickText('Next')
-  await clickText('No')
-  await clickText("That's all")
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Start my plan')
-  await typeMoney('Amount', '2500')
-  await clickText('Next')
-  await typeMoney('Amount', '800')
-  await clickText('Next')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft16') throw new Error(`positive fork missed:\n${text}`)
-  if (!text.includes('HK$5,220') || !text.includes('HK$1,200') || !text.includes('HK$2,500') || !text.includes('HK$800') || !text.includes('HK$720')) {
-    throw new Error(`FT16 sample math:\n${text}`)
-  }
-  if (/you will save|save HK\$/i.test(text)) throw new Error(`FT16 promised a save:\n${text}`)
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
-  await shot('ft16-sample-fits.png')
-  await openLivePack()
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft16') throw new Error(`positive Pack left This month fits:\n${text}`)
-  if (/A helper will be named|helper will be found|For your day off/i.test(text)) throw new Error(`positive Pack opened an internal pack:\n${text}`)
-  await clickText('Start a cushion')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`positive cushion missed room to save:\n${text}`)
-  if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month') || !text.includes('Left is room to start saving.')) {
-    throw new Error(`positive room feel:\n${text}`)
-  }
-  if (!text.includes('Pay you entered · Out from what you entered. Nothing we made up.')) throw new Error(`positive room copy:\n${text}`)
-  if (!text.includes('HK$720') || !text.includes('HK$1,200') || !text.includes('HK$2,500') || !text.includes('HK$800') || !text.includes('Installment') || !text.includes('Send home')) {
-    throw new Error(`positive room numbers:\n${text}`)
-  }
-  if (text.includes('You') || text.includes('HK$1,920') || text.includes('HK$0')) throw new Error(`positive room invented You or a different Left:\n${text}`)
-  await shot('ft15-after-improve.png')
-
-  await clickSel('[data-act="exit"]')
-  await clickText('Erase my data')
-  await clickText('Erase everything')
-  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
-  await clickText('Start')
-  await clickSel('[data-door="fix"]')
-  await typeMoney('Amount', '5000')
-  await clickText('Next')
-  await clickText('Yes')
-  await fill('Who', 'Card')
-  await clickText('Next')
-  await typeMoney('Amount', '8000')
-  await clickText('Next')
-  await clickText("I don't know")
-  await typeMoney('Amount', '2000')
-  await clickText('Next')
-  await fill('Next date', '2026-11-20')
-  await clickText('Next')
-  await clickText('No')
-  await clickText("That's all")
-  await clickText('Next')
-  await clickText('Next')
-  await clickText('Start my plan')
-  await typeMoney('Amount', '2500')
-  await clickText('Next')
-  await typeMoney('Amount', '800')
-  await clickText('Next')
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft18') throw new Error(`short month missed:\n${text}`)
-  if (!text.includes('This month is short') || !text.includes('HK$300') || !text.includes('We can build a payment plan you take with you.')) {
-    throw new Error(`FT18 copy:\n${text}`)
-  }
-  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await onScreen('ft18')
+  await mustInclude(['This month is short', 'Short', 'HK$300'])
+  await mustExclude(['Room to save this month', 'Room for a goal'])
   await shot('ft18-month-short.png')
   await openLivePack()
-  text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft18') throw new Error(`short Pack left This month is short:\n${text}`)
-  if (text.includes('Room to save this month') || text.includes('HK$1,700') || /A helper will be named|helper will be found/i.test(text)) {
-    throw new Error(`short Pack opened a room or a helper dead end:\n${text}`)
-  }
+  await onScreen('ft18')
+  await mustExclude(['Room to save this month', 'A helper will be named', 'helper will be found'])
   await shot('fork-b-pack-stays-short.png')
+
+  await erase()
+  await enterFlow({ pay: '5220', loan: false, home: '1000', bills: '100', keep: '100' })
+  await mustInclude(['Your full picture', 'Pay', 'HK$5,220', 'Left', 'HK$4,020'])
+  await mustExclude(['Installment', 'Card', 'Overdue', 'HK$0'])
+  await shot('cf07-no-loan.png')
+  await clickText('Take actions')
+  await onScreen('cf08')
+  await mustExclude(['Change loan'])
+  await clickText('Done')
+  await onScreen('cf10')
+  await mustInclude(['Room for a goal', 'Better to save than to loan', 'HK$4,020'])
+  await mustExclude(['Installment'])
 
   const missing = required.filter((id) => !seen.has(id))
   if (missing.length) throw new Error(`screens not visited: ${missing.join(', ')}`)

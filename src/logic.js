@@ -195,6 +195,51 @@ export function monthMath(state) {
 }
 
 /**
+ * Full picture for the clean flow. Keep counts when she typed it.
+ * A blank pay, send-home, bills, or keep means there is no picture yet.
+ * No loan: installment stays off the card.
+ */
+export function cleanPicture(state) {
+  if (!state || state.pay === '' || state.home === '' || state.otherBills === '' || state.you === '') return null
+  const pay = money(state.pay)
+  const home = money(state.home)
+  const bills = money(state.otherBills)
+  const keep = money(state.you)
+  const loans = state.owes === false ? [] : (state.lenders || [])
+  const hasLoan = loans.some((lender) => lender.due !== '' || lender.name)
+  const installment = hasLoan ? roundCents(debtMonthly(loans)) : 0
+  const out = roundCents((hasLoan ? installment : 0) + home + bills + keep)
+  const left = roundCents(pay - out)
+  return { pay, installment, home, bills, keep, out, left, fits: left > 0.001, hasLoan }
+}
+
+/** Negative amounts read HK$−280, matching the clean-flow card. */
+export function hkSigned(value) {
+  const n = roundCents(value)
+  if (n < 0) return `HK$\u2212${hk(Math.abs(n)).slice(3)}`
+  return hk(n)
+}
+
+/**
+ * Whether Left each month can reach the goal by that month.
+ * Suggests the first later month that can, counting from this month.
+ */
+export function goalFit(left, amount, by, now = new Date()) {
+  const each = money(left)
+  const need = money(amount)
+  const months = Math.max(0, monthsUntil(now, by))
+  const could = roundCents(each * months)
+  const fits = need > 0 && could + 0.001 >= need
+  let suggest = null
+  if (!fits && each > 0 && need > 0) {
+    const needMonths = Math.ceil(need / each - 1e-9)
+    const date = new Date(now.getFullYear(), now.getMonth() + needMonths, 1)
+    suggest = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  }
+  return { months, could, fits, suggest }
+}
+
+/**
  * Room to save. Same gap as This month fits: pay − installment − send home − bills.
  * A blank You, Home, or Bills is left off the rows. Never filled in as HK$0.
  * You, once she types it, is shown and is not subtracted from Left.

@@ -16,6 +16,9 @@ import {
   money,
   monthlyDue,
   monthMath,
+  cleanPicture,
+  goalFit,
+  hkSigned,
   monthsUntil,
   noteOverdue,
   offshoreKey,
@@ -130,6 +133,51 @@ const shortRoom = roomToSave({
 assert.equal(shortRoom.fits, false)
 assert.equal(shortRoom.left, -300)
 assert.equal(shortRoom.rows.some((row) => row.name === 'You'), false)
+
+const picture = cleanPicture({
+  pay: '5220',
+  owes: true,
+  home: '2500',
+  otherBills: '800',
+  you: '1000',
+  lenders: [{ name: 'Card', due: '1200', freq: 'monthly', left: '8000', overdue: true, overdueAmount: '2400' }],
+})
+assert.equal(picture.installment, 1200)
+assert.equal(picture.out, 5500)
+assert.equal(picture.left, -280)
+assert.equal(picture.fits, false)
+assert.equal(hkSigned(picture.left), 'HK$\u2212280')
+const roomAfterCut = cleanPicture({
+  pay: '5220',
+  owes: true,
+  home: '1500',
+  otherBills: '800',
+  you: '1000',
+  lenders: [{ name: 'Card', due: '1200', freq: 'monthly', left: '8000' }],
+})
+assert.equal(roomAfterCut.out, 4500)
+assert.equal(roomAfterCut.left, 720)
+assert.equal(roomAfterCut.fits, true)
+const noLoanPicture = cleanPicture({
+  pay: '5220',
+  owes: false,
+  lenders: [],
+  home: '2500',
+  otherBills: '800',
+  you: '1000',
+})
+assert.equal(noLoanPicture.hasLoan, false)
+assert.equal(noLoanPicture.installment, 0)
+assert.equal(noLoanPicture.left, 920)
+assert.equal(cleanPicture({ pay: '5220', home: '2500', otherBills: '800', you: '', owes: false, lenders: [] }), null)
+const octEleven = new Date(2026, 9, 11)
+const tightGoal = goalFit(720, 3000, '2026-12', octEleven)
+assert.equal(tightGoal.months, 2)
+assert.equal(tightGoal.fits, false)
+assert.equal(tightGoal.suggest, '2027-03')
+const movedGoal = goalFit(720, 3000, '2027-03', octEleven)
+assert.equal(movedGoal.months, 5)
+assert.equal(movedGoal.fits, true)
 
 const state = {
   pay: '5220',

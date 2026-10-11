@@ -19,6 +19,9 @@ import {
   planLeft,
   planPartsEntered,
   monthMath,
+  cleanPicture,
+  goalFit,
+  hkSigned,
   roomToSave,
   saveableGap,
   projectFund,
@@ -361,6 +364,66 @@ function dueFact(state) {
     return `${esc(lender.name)} due ${hk(lender.due)} ${often}`
   })
   return bits.join(' · ')
+}
+
+const PAPER_ROWS = [
+  ['writing', 'In writing?'],
+  ['rate', 'Rate and total said?'],
+  ['licence', 'Licence said?'],
+  ['hold', 'Hold passport / phone / card?'],
+  ['take', 'Take from pay without yes?'],
+]
+
+function paperLabel(value) {
+  if (value === 'yes') return 'Yes'
+  if (value === 'no') return 'No'
+  return 'Not sure'
+}
+
+function paperOk(key, value) {
+  if (key === 'hold' || key === 'take') return value === 'no'
+  return value === 'yes'
+}
+
+function loanPapers(lender) {
+  return {
+    writing: 'unsure', rate: 'unsure', licence: 'unsure', hold: 'unsure', take: 'unsure',
+    ...(lender?.papers || {}),
+  }
+}
+
+function byPhrase(ym) {
+  const full = monthLong(ym)
+  const year = String(new Date().getFullYear())
+  if (full.endsWith(` ${year}`)) return full.slice(0, -(year.length + 1))
+  return full
+}
+
+function loanBlocks(state) {
+  return (state.lenders || []).map((lender, index) => {
+    const papers = loanPapers(lender)
+    const due = lender.due !== '' ? `${hk(lender.due)} \u00b7 ${freqWord(lender.freq)}` : 'Not set'
+    const late = lender.overdue && money(lender.overdueAmount) > 0 ? hk(lender.overdueAmount) : ''
+    const when = shortDate(lender.nextDate)
+    const next = [when, late].filter(Boolean).join(' \u00b7 ') || 'Not set'
+    const nextAmber = !!late || isPastDate(lender.nextDate)
+    const interest = lender.interestUnknown || lender.interest === '' ? 'Not known' : `${lender.interest}%`
+    const line = (field, k, v, amber = false) => `<button type="button" class="lr" data-act="cf-line" data-index="${index}" data-field="${field}"><span class="k">${k}</span><span class="v${amber ? ' amber' : ''}">${esc(v)}</span></button>`
+    const paper = ([key, label]) => {
+      const value = papers[key] || 'unsure'
+      return `<button type="button" class="legrow" data-act="paper-cycle" data-index="${index}" data-paper="${key}"><span class="k">${label}</span><span class="ans${paperOk(key, value) ? ' ok' : ''}">${paperLabel(value)}</span></button>`
+    }
+    return `<div class="loanblock"><div class="hb">Details</div>
+      ${line('name', 'Who', lender.name.trim() || 'Not set')}
+      ${line('left', 'Left to pay', lender.left !== '' ? hk(lender.left) : 'Not set')}
+      ${line('due', 'Due each time', due)}
+      ${line('next', 'Next \u00b7 Overdue', next, nextAmber)}
+      ${line('interest', 'Interest', interest)}
+    </div>
+    <div class="loanblock"><div class="hb">Papers \u00b7 facts only</div>
+      ${PAPER_ROWS.map(paper).join('')}
+    </div>`
+  }).join('')
 }
 
 const PAPER_QUESTIONS = [
@@ -1259,6 +1322,280 @@ const pages = {
   },
   'papers-sum'(state) {
     return pages.ft07(state)
+  },
+  cf00() {
+    return shell({
+      stepper: 'Start',
+      body: `<h1>Where are you right now?</h1>
+        <p class="body">Pick one. You can change later.</p>
+        <div class="doors"><div class="door static"><span class="t">Money is tight right now</span><span class="s">Most people start here.</span></div></div>`,
+      actions: primary('Next', 'next'),
+    })
+  },
+  cf01(state) {
+    return shell({
+      stepper: 'Income',
+      body: `<p class="eyebrow">Money in</p>
+        <h1>How much do you get paid each month?</h1>
+        ${moneyField('pay', state.pay)}
+        <p class="hint">Your pay after any cuts. Change it any time.</p>`,
+      actions: primary('Next', 'next'),
+    })
+  },
+  cf02() {
+    return shell({
+      stepper: 'Loan',
+      body: `<p class="eyebrow">What you owe</p>
+        <h1>Do you have a loan?</h1>
+        <p class="body">Loans, cards, or money from family or friends.</p>
+        <div class="doors">
+          <button type="button" class="door choice" data-act="cf-yes"><span class="t">Yes</span></button>
+          <button type="button" class="door choice" data-act="cf-no"><span class="t">No</span></button>
+        </div>`,
+    })
+  },
+  cf03(state) {
+    const lenders = state.lenders || []
+    const title = lenders.length === 1 ? (lenders[0].name.trim() || 'Your loan') : 'Your loans'
+    return shell({
+      stepper: 'Loan',
+      body: `<p class="eyebrow">Your loan \u00b7 one place</p>
+        <h1>${esc(title)}</h1>
+        <p class="body">Details and papers together. Tap a line to change.</p>
+        ${loanBlocks(state)}
+        <p class="hint">We are not lawyers. Facts stay on this phone.</p>
+        <button type="button" class="addloan" data-act="loan-add">Add another loan</button>`,
+      actions: primary('Next', 'next'),
+    })
+  },
+  'cf-line'(state, route) {
+    const index = route.index || 0
+    const lender = (state.lenders || [])[index] || { name: '', left: '', due: '', freq: 'monthly', nextDate: '', overdueAmount: '', interest: '' }
+    const prefix = `lenders.${index}`
+    const field = route.field
+    let body = ''
+    if (field === 'name') {
+      body = `<h1>Who is this loan?</h1>${textField(`${prefix}.name`, lender.name, 'Who')}`
+    } else if (field === 'left') {
+      body = `<h1>How much is left to pay?</h1>${moneyField(`${prefix}.left`, lender.left, 'Left to pay')}`
+    } else if (field === 'due') {
+      const freq = lender.freq || 'monthly'
+      const option = (value, label) => `<button type="button" class="r${freq === value ? ' on' : ''}" data-act="cf-freq" data-index="${index}" data-value="${value}" role="radio" aria-checked="${freq === value}"><i></i>${label}</button>`
+      body = `<h1>How much is due each time?</h1>
+        ${moneyField(`${prefix}.due`, lender.due, 'Due each time')}
+        <p class="flabel">How often?</p>
+        <div class="radios" role="radiogroup" aria-label="How often">
+          ${option('monthly', 'Monthly')}
+          ${option('biweekly', 'Every 2 weeks')}
+          ${option('weekly', 'Weekly')}
+        </div>`
+    } else if (field === 'next') {
+      body = `<h1>When is the next payment due?</h1>
+        <label class="field date${lender.nextDate ? ' filled' : ''}"><input type="date" aria-label="Next date" data-field="${prefix}.nextDate" data-kind="date" value="${esc(lender.nextDate)}"></label>
+        <p class="hint" data-echo="date" data-empty="Pick a date.">${lender.nextDate ? esc(longDate(lender.nextDate)) : 'Pick a date.'}</p>
+        <p class="flabel">Overdue</p>
+        ${moneyField(`${prefix}.overdueAmount`, lender.overdueAmount, 'Overdue')}
+        <p class="hint">Leave blank if nothing is overdue. This is not a bill.</p>`
+    } else if (field === 'overdue') {
+      body = `<h1>How much is overdue?</h1>
+        ${moneyField(`${prefix}.overdueAmount`, lender.overdueAmount, 'Overdue')}
+        <p class="hint">Leave blank if nothing is overdue. This is not a bill.</p>`
+    } else {
+      body = `<h1>How much interest do you pay?</h1>
+        <p class="body">Check your papers or app.</p>
+        <label class="field${lender.interest !== '' ? ' filled' : ''}"><input aria-label="Interest" data-field="${prefix}.interest" data-kind="decimal" inputmode="decimal" autocomplete="off" value="${esc(lender.interest)}"><span class="cur">%</span></label>
+        <p class="hint warn" data-cap hidden>That number is too big.</p>`
+    }
+    const skip = field === 'interest' ? quiet('I don\u2019t know', 'interest-unknown') : ''
+    return shell({
+      stepper: 'Loan',
+      body,
+      actions: `${primary('Next', 'next')}${skip}`,
+    })
+  },
+  cf04(state) {
+    return shell({
+      stepper: 'Expenses',
+      body: `<p class="eyebrow">Expenses \u00b7 1 of 3 \u00b7 Home</p>
+        <h1>How much will you send home each month?</h1>
+        <p class="body">You decide. Change it any time.</p>
+        ${moneyField('home', state.home)}`,
+      actions: primary('Next', 'next'),
+    })
+  },
+  cf05(state) {
+    const loanName = state.owes === false ? '' : ((state.lenders || [])[0]?.name || '').trim()
+    const stay = loanName ? ` What you owe stays on ${esc(loanName)}.` : ''
+    const hint = loanName
+      ? `Only what you type here. Loan dues stay on ${esc(loanName)}.`
+      : 'Only what you type here.'
+    return shell({
+      stepper: 'Expenses',
+      body: `<p class="eyebrow">Expenses \u00b7 2 of 3 \u00b7 Bills</p>
+        <h1>How much for your other bills each month?</h1>
+        <p class="body">Phone, transport, and other bills you pay.${stay}</p>
+        ${moneyField('otherBills', state.otherBills)}
+        <p class="hint">${hint}</p>`,
+      actions: primary('Next', 'next'),
+    })
+  },
+  cf06(state) {
+    return shell({
+      stepper: 'Expenses',
+      body: `<p class="eyebrow">Expenses \u00b7 3 of 3 \u00b7 Keep</p>
+        <h1>How much will you keep for yourself?</h1>
+        <p class="body">Food, transport for you, and day-to-day. You decide.</p>
+        ${moneyField('you', state.you)}`,
+      actions: primary('Next', 'next'),
+    })
+  },
+  cf07(state) {
+    const pic = cleanPicture(state)
+    const loanName = state.owes === false ? '' : ((state.lenders || [])[0]?.name || '').trim()
+    const lender = (state.lenders || [])[0]
+    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${value}</span></div>`
+    const rows = pic
+      ? `${row('Pay', hk(pic.pay))}
+        ${pic.hasLoan ? row('Installment', hk(pic.installment)) : ''}
+        ${row('Send home', hk(pic.home))}
+        ${row('Bills', hk(pic.bills))}
+        ${row('Keep', hk(pic.keep))}
+        <div class="row total"><span class="k">Left</span><span class="v">${hkSigned(pic.left)}</span></div>`
+      : ''
+    let fact = ''
+    if (pic?.hasLoan && lender) {
+      const bits = []
+      if (lender.left !== '') bits.push(`Left ${hk(lender.left)}`)
+      if (lender.overdue && money(lender.overdueAmount) > 0) bits.push(`Overdue ${hk(lender.overdueAmount)}`)
+      bits.push(lender.interestUnknown || lender.interest === '' ? 'Interest not known' : `Interest ${esc(lender.interest)}%`)
+      fact = `<div class="fact"><b>${esc(loanName || 'Loan')}</b>${bits.join(' \u00b7 ')}</div>`
+    }
+    const from = pic?.hasLoan
+      ? 'From pay, loan, send home, bills, and keep you entered.'
+      : 'From pay, send home, bills, and keep you entered.'
+    return shell({
+      stepper: 'Your Now',
+      body: `<span class="followchip">Your Now</span>
+        <h1>Your full picture</h1>
+        <p class="leftoversub">${from}</p>
+        <div class="nowcard"><div class="h">This month<span>${esc(monthName(new Date()))}</span></div><div class="rows">${rows}</div></div>
+        ${fact}
+        <p class="hint">Nothing invented. Change any part next.</p>`,
+      actions: primary('Take actions', 'next'),
+    })
+  },
+  cf08(state) {
+    const started = !!state.sundayPack?.started
+    const loan = state.owes !== false && (state.lenders || []).some((lender) => lender.due !== '' || lender.name)
+    const overdue = overdueTotal(state.lenders)
+    const loanSub = overdue > 0
+      ? `Installment ${hk(debtMonthly(state.lenders))} \u00b7 overdue ${hk(overdue)}`
+      : `Installment ${hk(debtMonthly(state.lenders))}`
+    const door = (part, title, sub) => `<button type="button" class="door" data-act="cf-change" data-part="${part}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    const packSub = started ? 'You started this \u00b7 pick it up' : 'For your day off \u00b7 opens live Pack'
+    return shell({
+      stepper: 'Actions',
+      body: `<span class="followchip">Take actions</span>
+        <h1>What can you change?</h1>
+        <p class="body">Spend less on one part \u2014 or open Sunday Pack for your day off.</p>
+        <div class="actlist">
+          ${door('home', 'Change send home', `${hk(state.home)} now`)}
+          ${door('bills', 'Change bills', `${hk(state.otherBills)} now`)}
+          ${loan ? door('loan', 'Change loan', loanSub) : ''}
+        </div>
+        ${packLink('packdoor', `<span class="t">Sunday Pack</span><span class="s">${packSub}</span>`)}`,
+      actions: primary('Done', 'cf-done'),
+    })
+  },
+  cf09() {
+    return shell({
+      stepper: 'Actions',
+      body: `<span class="followchip">Sunday Pack</span>
+        <h1>Pack is on for next time</h1>
+        <p class="body">We opened your day-off pack. Next time you open, we pick it up \u2014 not start over.</p>
+        <div class="saved">${LOCK}<span>Flag set on this phone. Live Pack: ${SUNDAY_PACK_URL}</span></div>
+        <div class="actionpick"><b>Next open</b>Resume your day-off pack \u00b7 due \u00b7 late \u00b7 your action</div>`,
+      actions: primary('Back to actions', 'cf-back-actions'),
+    })
+  },
+  cf10(state) {
+    const pic = cleanPicture(state) || { pay: 0, out: 0, left: 0 }
+    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
+    return shell({
+      stepper: 'Goals',
+      body: `<span class="followchip">Your month fits</span>
+        <h1>Room for a goal</h1>
+        <p class="leftoversub">From amounts you entered after your actions.</p>
+        <div class="rows">
+          ${row('Pay', pic.pay)}
+          ${row('Out', pic.out)}
+          <div class="row total"><span class="k">Left</span><span class="v">${hk(pic.left)}</span></div>
+        </div>
+        <div class="betterline"><b>Better to save than to loan</b>Use what\u2019s left toward a goal \u2014 not a new loan.</div>`,
+      actions: `${primary('Plan a goal', 'cf-goal')}${quiet('Done for now', 'cf-back-actions')}`,
+    })
+  },
+  cf11(state) {
+    return shell({
+      stepper: 'Goals',
+      body: `<p class="eyebrow">Goal \u00b7 create</p>
+        <h1>What are you saving for?</h1>
+        ${textField('goalDraft.name', state.goalDraft.name, 'Goal name')}
+        <p class="flabel">How much?</p>
+        ${moneyField('goalDraft.amount', state.goalDraft.amount)}
+        <p class="flabel">By when?</p>
+        <label class="field month${state.goalDraft.by ? ' filled' : ''}"><input type="month" aria-label="Month" data-field="goalDraft.by" data-kind="month" value="${esc(state.goalDraft.by)}"></label>
+        <p class="hint" data-echo="month" data-empty="Pick a month.">${state.goalDraft.by ? esc(monthLong(state.goalDraft.by)) : 'Pick a month.'}</p>`,
+      actions: primary('Next', 'next'),
+    })
+  },
+  cf12(state) {
+    const pic = cleanPicture(state)
+    const left = pic?.left || 0
+    const fit = goalFit(left, state.goalDraft.amount, state.goalDraft.by)
+    const when = byPhrase(state.goalDraft.by)
+    const suggest = fit.suggest ? monthLong(fit.suggest) : 'a later month'
+    return shell({
+      stepper: 'Goals',
+      body: `<span class="followchip">Goal check</span>
+        <h1>That date is tight</h1>
+        <p class="body">With ${hk(left)} left each month, ${hk(state.goalDraft.amount)} by ${esc(when)} may not fit.</p>
+        <div class="moveline"><b>Move the date</b>Try ${esc(suggest)} \u2014 or save what you can each month.</div>
+        <div class="betterline"><b>Better to save than to loan</b>Don\u2019t borrow to hit the date. Stretch the date instead.</div>`,
+      actions: `${primary('Move the date', 'cf-move-date')}${quiet('Keep this date', 'cf-keep-date')}`,
+    })
+  },
+  cf13(state) {
+    const goal = state.cleanGoal || state.goals[state.goals.length - 1] || { name: '', amount: '', by: '', tight: false, left: 0 }
+    const pic = cleanPicture(state)
+    const left = pic ? pic.left : money(goal.left)
+    const tight = goal.tight ? '<div class="moveline"><b>That date is tight</b>You kept this date.</div>' : ''
+    return shell({
+      stepper: 'Goals',
+      body: `<span class="followchip">Goal saved</span>
+        <h1>${esc(goal.name)}</h1>
+        <div class="lifecard"><div class="h">${hk(goal.amount)}<span>by ${esc(monthLong(goal.by))}</span></div>
+          <div class="k">From Left ${hk(left)} a month \u00b7 nothing invented</div>
+          <div class="k">Emergency money is not counted here</div>
+        </div>
+        ${tight}
+        <div class="betterline"><b>Better to save than to loan</b>This goal uses what you already have room for.</div>
+        <div class="saved">${LOCK}<span>Saved on this phone. The plan stays on this phone. Your progress can be saved.</span></div>`,
+      actions: primary('Done', 'cf-goal-done'),
+    })
+  },
+  'cf-resume'(state) {
+    const week = (state.lenders || []).length
+      ? packWeek(state)
+      : '<div class="actionpick"><b>Next open</b>Resume your day-off pack \u00b7 due \u00b7 late \u00b7 your action</div>'
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">You started this</span>
+        <h1>Pick up your day-off pack</h1>
+        <p class="body">Same pack. Check what\u2019s due, what\u2019s late, and your action.</p>
+        ${week}`,
+      actions: `${primary('Continue', 'cf-resume-continue')}${quiet('Not now', 'pack-not-now')}`,
+    })
   },
   send(state) {
     const split = homeSplit(state.home, state.sendHome?.app || 0)
