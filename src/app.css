@@ -104,7 +104,7 @@ button, input { font-family: inherit; color: inherit; }
   text-align: left;
   font: 700 19px var(--os-font);
 }
-button.door { width: 100%; cursor: pointer; font: inherit; color: inherit; }
+button.door, a.door { width: 100%; cursor: pointer; font: inherit; color: inherit; }
 button.door.choice { text-align: center; }
 button.lifecard, button.owe, button.score {
   width: 100%;
@@ -151,7 +151,7 @@ button.lifecard, button.owe, button.score {
   z-index: 2;
   padding-bottom: max(34px, env(safe-area-inset-bottom));
 }
-.btn, button.sidelink, button.door, button.packdoor { touch-action: manipulation; }
+.btn, button.sidelink, button.door, a.door, button.packdoor, a.packdoor { touch-action: manipulation; }
 .hint.warn { color: #7A2E14; font-weight: 700; }
 .hint.warn[hidden] { display: none; }
 .row-actions { display: flex; gap: 8px; margin-top: 12px; }
@@ -379,7 +379,7 @@ button.sidelink {
 .placepick .door.door-loud .t { font-size: 20px; }
 .placepick .door.door-loud .s { font-size: 16px; }
 .placepick .door.door-loud::after { font-size: 30px; color: var(--os-ink); }
-button.packdoor {
+.packdoor {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -397,9 +397,9 @@ button.packdoor {
   box-sizing: border-box;
   cursor: pointer;
 }
-button.packdoor .t { font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--os-ink); }
-button.packdoor .s { font-size: 16px; color: var(--os-muted); margin-top: 2px; line-height: 1.25; }
-button.packdoor::after {
+.packdoor .t { font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--os-ink); }
+.packdoor .s { font-size: 16px; color: var(--os-muted); margin-top: 2px; line-height: 1.25; }
+.packdoor::after {
   content: "›";
   position: absolute;
   right: 16px;

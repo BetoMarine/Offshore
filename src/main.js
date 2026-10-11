@@ -177,13 +177,6 @@ function partsReady() {
   return planPartsEntered(state)
 }
 
-function openSundayPack() {
-  const here = route().screen
-  const month = monthMath(state)
-  if (month && (here === 'ft16' || here === 'ft18')) return go(month.fits ? 'ft17' : 'ft19')
-  return go(state.sundayPack?.started ? 'ft03' : 'f07')
-}
-
 function canResume() {
   return !!(state.planSet || state.sundayPack?.started || planPartsEntered(state))
 }
@@ -732,7 +725,7 @@ function onClick(event) {
     return go('o23')
   }
   if (act === 'cushion-else') return saveableGap(state) ? go('ft05') : go(planScreen())
-  if (act === 'sunday-pack') return openSundayPack()
+  if (act === 'sunday-pack') return undefined
   if (act === 'see-fix') {
     if (route().screen !== 'ft00') return go('ft00')
     if (!partsReady()) return go('o05')

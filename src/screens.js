@@ -62,12 +62,20 @@ function quiet(label, act) {
   return `<button type="button" class="btn quiet" data-act="${act}">${label}</button>`
 }
 
+const SUNDAY_PACK_URL = 'https://betomarine.github.io/debtrenegociation1/sunday/'
+
+function packLink(className, inner) {
+  return `<a class="${className}" href="${SUNDAY_PACK_URL}" target="_blank" rel="noopener noreferrer" data-act="sunday-pack">${inner}</a>`
+}
+
 function packPrimary() {
-  return `<button type="button" class="btn primary pack" data-act="sunday-pack">Sunday Pack</button>`
+  return packLink('btn primary pack', 'Sunday Pack')
 }
 
 function packDoor(title, sub, act) {
-  return `<button type="button" class="packdoor" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+  const inner = `<span class="t">${title}</span><span class="s">${sub}</span>`
+  if (act === 'sunday-pack') return packLink('packdoor', inner)
+  return `<button type="button" class="packdoor" data-act="${act}">${inner}</button>`
 }
 
 function packActions(lead, more) {
@@ -1089,7 +1097,11 @@ const pages = {
   },
   ft14(state) {
     const started = !!state.sundayPack?.started
-    const door = (act, title, sub, loud = false) => `<button type="button" class="door${loud ? ' door-loud' : ''}" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    const door = (act, title, sub, loud = false) => {
+      const inner = `<span class="t">${title}</span><span class="s">${sub}</span>`
+      if (act === 'sunday-pack') return packLink(`door${loud ? ' door-loud' : ''}`, inner)
+      return `<button type="button" class="door${loud ? ' door-loud' : ''}" data-act="${act}">${inner}</button>`
+    }
     return shell({
       stepper: 'Start',
       body: `<span class="followchip">Welcome back</span>
@@ -1208,13 +1220,16 @@ const pages = {
     const lender = state.lenders[state.fix?.papersIndex] || { name: 'This loan' }
     const summary = contractSummary(state.contract)
     const labels = (summary.warn ? summary.amber : summary.clear).join(' · ')
-    const door = (act, title, sub, loud = false) => `<button type="button" class="door${loud ? ' door-loud' : ''}" data-act="${act}"><span class="t">${title}</span><span class="s">${sub}</span></button>`
+    const door = (act, title, sub, loud = false) => {
+      const inner = `<span class="t">${title}</span><span class="s">${sub}</span>`
+      if (act === 'sunday-pack') return packLink(`door${loud ? ' door-loud' : ''}`, inner)
+      return `<button type="button" class="door${loud ? ' door-loud' : ''}" data-act="${act}">${inner}</button>`
+    }
     return shell({
       stepper: 'Check',
       body: `<div class="teachcopy"><h1>You can still get better</h1>
         <p class="body">We are not lawyers. Split your pay. Pay yourself first.</p>
-        <div class="fact"><b>${esc(lender.name)} · facts ready</b>${esc(labels)}</div>
-        <div class="helperslot"><b>Someone who can help</b>A helper will be named here. Not named yet.</div></div>
+        <div class="fact"><b>${esc(lender.name)} · facts ready</b>${esc(labels)}</div></div>
         <div class="pinrow placepick teachdoors teachdoors-loud">
           ${door('sunday-pack', 'Sunday Pack', 'For your day off', true)}
           ${door('see-fix', 'See what you can do', 'Fix late · fit the month', true)}

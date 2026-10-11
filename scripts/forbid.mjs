@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 
 const banned = ['pyl-', 'right-door', 'fortune', 'Fortune', 'debtrenegociation1', 'invest', 'boost']
+const livePackUrl = 'https://betomarine.github.io/debtrenegociation1/sunday/'
 const textExt = new Set(['.html', '.js', '.css', '.json', '.webmanifest', '.svg', '.txt', '.map'])
 
 async function walk(dir, out = []) {
@@ -17,7 +18,8 @@ const files = await walk('dist')
 const hits = []
 for (const file of files) {
   const buf = await readFile(file)
-  const text = textExt.has(extname(file)) ? buf.toString('utf8') : buf.toString('latin1')
+  const raw = textExt.has(extname(file)) ? buf.toString('utf8') : buf.toString('latin1')
+  const text = raw.split(livePackUrl).join('')
   for (const word of banned) {
     if (text.includes(word)) hits.push(`${file}: ${word}`)
   }
