@@ -19,6 +19,7 @@ import {
   planLeft,
   planPartsEntered,
   monthMath,
+  roomToSave,
   saveableGap,
   projectFund,
   projectGoal,
@@ -177,6 +178,28 @@ function lenderCards(state) {
       <button type="button" class="papers" data-act="papers-pick" data-index="${index}">Check a loan’s papers</button>
     </div>`
   }).join('')
+}
+
+function roomScreen(state, chip) {
+  const room = roomToSave(state)
+  const rows = (room?.rows || [])
+    .map((item) => `<div class="row"><span class="k">${item.name}</span><span class="v">${hk(item.value)}</span></div>`)
+    .join('')
+  const left = room
+    ? `<div class="row total"><span class="k">Left</span><span class="v">${hk(room.left)}</span></div>`
+    : ''
+  return shell({
+    stepper: 'Day off',
+    body: `<span class="followchip">${chip}</span>
+      <h1>Room to save this month</h1>
+      <p class="leftoversub">Pay you entered · Out from what you entered. Nothing we made up.</p>
+      <div class="rows">
+        ${rows}
+        ${left}
+      </div>
+      <p class="hint">Left is room to start saving.</p>`,
+    actions: `${primary('See where it can go', 'gap-go')}${quiet('Done for now', 'pack-later')}`,
+  })
 }
 
 export function view(state, route) {
@@ -1046,23 +1069,7 @@ const pages = {
     })
   },
   ft08(state) {
-    const fig = saveableGap(state) || planFigures(state)
-    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
-    return shell({
-      stepper: 'Day off',
-      body: `<span class="followchip">Day-off pack done</span>
-        <h1>Room to save this month</h1>
-        <p class="leftoversub">Pay you entered · Out from your plan. Nothing we made up.</p>
-        <div class="rows">
-          ${row('Pay', fig.pay)}
-          ${row('Home', fig.home)}
-          ${row('Bills', fig.bills)}
-          ${row('You', fig.you)}
-          <div class="row total"><span class="k">Left</span><span class="v">${hk(fig.left)}</span></div>
-        </div>
-        <p class="hint">Left is room to start saving.</p>`,
-      actions: `${primary('See where it can go', 'gap-go')}${quiet('Done for now', 'pack-later')}`,
-    })
+    return roomScreen(state, 'Day-off pack done')
   },
   ft09(state) {
     const fig = saveableGap(state) || planFigures(state)
@@ -1181,23 +1188,7 @@ const pages = {
     })
   },
   ft15(state) {
-    const fig = saveableGap(state) || planFigures(state)
-    const row = (name, value) => `<div class="row"><span class="k">${name}</span><span class="v">${hk(value)}</span></div>`
-    return shell({
-      stepper: 'Day off',
-      body: `<span class="followchip">Day-off pack · picked up</span>
-        <h1>Room to save this month</h1>
-        <p class="leftoversub">Pay you entered · Out from your plan. Nothing we made up.</p>
-        <div class="rows">
-          ${row('Pay', fig.pay)}
-          ${row('Home', fig.home)}
-          ${row('Bills', fig.bills)}
-          ${row('You', fig.you)}
-          <div class="row total"><span class="k">Left</span><span class="v">${hk(fig.left)}</span></div>
-        </div>
-        <p class="hint">Left is room to start saving.</p>`,
-      actions: `${primary('See where it can go', 'gap-go')}${quiet('Done for now', 'pack-later')}`,
-    })
+    return roomScreen(state, 'Day-off pack · picked up')
   },
   ft10(state) {
     const fig = saveableGap(state) || planFigures(state)

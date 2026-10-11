@@ -6,7 +6,7 @@ import {
   catchUpValue,
   clampCatchUp,
   debtMonthly,
-  enteredRoom,
+  roomToSave,
   goalPlans,
   goalSurplus,
   hk,
@@ -82,12 +82,29 @@ assert.equal(fitMonth.installment, 1200)
 assert.equal(fitMonth.left, 720)
 assert.equal(fitMonth.fits, true)
 assert.equal(fitMonth.bills, 800)
-const fitRoom = enteredRoom({
-  pay: '5220', home: '2500', otherBills: '800', you: '',
+const fitRoom = roomToSave({
+  pay: '5220',
+  owes: true,
+  home: '2500',
+  otherBills: '800',
+  you: '',
+  lenders: [{ due: '1200', freq: 'monthly', overdue: true, overdueAmount: '2400' }],
 })
-assert.equal(fitRoom.bills, 800)
-assert.equal(fitRoom.out, 3300)
-assert.equal(fitRoom.left, 1920)
+assert.equal(fitRoom.fits, true)
+assert.equal(fitRoom.left, 720)
+assert.deepEqual(fitRoom.rows.map((row) => row.name), ['Pay', 'Installment', 'Send home', 'Bills'])
+assert.equal(fitRoom.rows.some((row) => row.value === 0), false)
+const fitRoomYou = roomToSave({
+  pay: '5220',
+  owes: true,
+  home: '2500',
+  otherBills: '800',
+  you: '100',
+  lenders: [{ due: '1200', freq: 'monthly' }],
+})
+assert.equal(fitRoomYou.left, 720)
+assert.equal(fitRoomYou.rows.at(-1).name, 'You')
+assert.equal(fitRoomYou.rows.at(-1).value, 100)
 
 const shortMonth = monthMath({
   pay: '5000',
@@ -102,7 +119,17 @@ assert.equal(shortMonth.short, 300)
 assert.equal(shortMonth.expenses, 3300)
 assert.equal(shortMonth.save, 250)
 assert.equal(shortMonth.proposed, 1450)
-assert.equal(enteredRoom({ pay: '5000', home: '2500', otherBills: '800', you: '' }).left, 1700)
+const shortRoom = roomToSave({
+  pay: '5000',
+  owes: true,
+  home: '2500',
+  otherBills: '800',
+  you: '',
+  lenders: [{ due: '2000', freq: 'monthly' }],
+})
+assert.equal(shortRoom.fits, false)
+assert.equal(shortRoom.left, -300)
+assert.equal(shortRoom.rows.some((row) => row.name === 'You'), false)
 
 const state = {
   pay: '5220',

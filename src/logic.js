@@ -194,18 +194,48 @@ export function monthMath(state) {
   }
 }
 
-/** Leftover from pay, send-home, bills, and You. Loan installment stays off Out. */
-export function enteredRoom(state) {
+/**
+ * Room to save. Same gap as This month fits: pay − installment − send home − bills.
+ * A blank You, Home, or Bills is left off the rows. Never filled in as HK$0.
+ * You, once she types it, is shown and is not subtracted from Left.
+ * No room when that gap is zero or short.
+ */
+export function roomToSave(state) {
+  const month = monthMath(state)
+  if (month) {
+    const rows = [
+      { name: 'Pay', value: month.pay },
+      { name: 'Installment', value: month.installment },
+    ]
+    if (state.home !== '') rows.push({ name: 'Send home', value: month.home })
+    if (state.otherBills !== '') rows.push({ name: 'Bills', value: month.bills })
+    if (state.you !== '') rows.push({ name: 'You', value: money(state.you) })
+    return { rows, left: month.left, fits: month.fits }
+  }
   if (!state || state.pay === '') return null
-  if (state.home === '' && state.otherBills === '' && state.you === '') return null
+  const rows = []
+  let out = 0
+  if (state.home !== '') {
+    const home = money(state.home)
+    rows.push({ name: 'Home', value: home })
+    out += home
+  }
+  if (state.otherBills !== '') {
+    const bills = money(state.otherBills)
+    rows.push({ name: 'Bills', value: bills })
+    out += bills
+  }
+  if (state.you !== '') {
+    const you = money(state.you)
+    rows.push({ name: 'You', value: you })
+    out += you
+  }
+  if (!rows.length) return null
   const pay = money(state.pay)
-  const home = money(state.home)
-  const bills = money(state.otherBills)
-  const you = money(state.you)
-  const out = roundCents(home + bills + you)
   const left = roundCents(pay - out)
   if (!(left > 0.001)) return null
-  return { pay, home, bills, you, out, left }
+  rows.unshift({ name: 'Pay', value: pay })
+  return { rows, left, fits: true }
 }
 
 /** Pack actions freed room: catch-up is in the plan and nothing is still late. */

@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/eleventh'
+const prefix = '/Offshore/preview/twelfth'
 const shots = '/opt/cursor/artifacts'
 const required = [
   'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
@@ -507,11 +507,15 @@ try {
   text = await bodyText()
   if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`cushion did not land on room to save:\n${text}`)
   if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month')) throw new Error(`room feel missing:\n${text}`)
-  if (!text.includes('Pay you entered · Out from your plan. Nothing we made up.') || !text.includes('Left is room to start saving.')) {
+  if (!text.includes('Pay you entered · Out from what you entered. Nothing we made up.') || !text.includes('Left is room to start saving.')) {
     throw new Error(`room copy missing:\n${text}`)
   }
-  if (!text.includes('HK$2,720') || !text.includes('HK$500')) throw new Error(`room numbers:\n${text}`)
-  if (text.includes('HK$760') || text.includes('HK$1,260')) throw new Error(`room invented installment into out:\n${text}`)
+  if (!text.includes('HK$1,960') || !text.includes('HK$760') || !text.includes('HK$500') || !text.includes('Installment') || !text.includes('Send home')) {
+    throw new Error(`room numbers:\n${text}`)
+  }
+  if (text.includes('You') || text.includes('HK$0') || text.includes('HK$2,720') || text.includes('HK$1,260')) {
+    throw new Error(`room invented You or dropped the installment:\n${text}`)
+  }
   await shot('ft15-room-to-save.png')
   await clickText('See where it can go')
   await clickText('Put toward You')
@@ -1183,11 +1187,13 @@ try {
   if (!text.includes('Room to save this month') || !text.includes('Left is room to start saving.')) {
     throw new Error(`saveable gap missing:\n${text}`)
   }
-  if (!text.includes('Pay you entered · Out from your plan. Nothing we made up.')) throw new Error(text)
-  if (text.includes('Your pack helped') || text.includes('HK$3,600') || text.includes('HK$1,400')) {
+  if (!text.includes('Pay you entered · Out from what you entered. Nothing we made up.')) throw new Error(text)
+  if (text.includes('Your pack helped') || text.includes('HK$3,600') || text.includes('HK$1,400') || text.includes('HK$4,000')) {
     throw new Error(`gap invented spend or stacked both results:\n${text}`)
   }
-  if (!text.includes('HK$4,000')) throw new Error(`gap left missing:\n${text}`)
+  if (!text.includes('HK$3,100') || !text.includes('HK$1,200') || !text.includes('Installment') || !text.includes('You')) {
+    throw new Error(`gap left missing:\n${text}`)
+  }
   await clickText('See where it can go')
   text = await bodyText()
   if (!text.includes('Start a cushion') || !text.includes('HK$4,000 left from your plan.')) {
@@ -1211,7 +1217,7 @@ try {
   if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month') || !text.includes('Left is room to start saving.')) {
     throw new Error(`resume gap missing:\n${text}`)
   }
-  if (!text.includes('HK$4,000')) throw new Error(`resume gap left missing:\n${text}`)
+  if (!text.includes('HK$3,100') || !text.includes('Installment') || text.includes('HK$4,000')) throw new Error(`resume gap left missing:\n${text}`)
   await clickText('Done for now')
 
   await clickSel('[data-act="exit"]')
@@ -1324,12 +1330,15 @@ try {
   await shot('ft17-pack-improve.png')
   await clickText('Done')
   text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`positive Done missed room to save:\n${text}`)
-  if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month') || !text.includes('Left is room to start saving.')) {
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft08') throw new Error(`positive Done missed room to save:\n${text}`)
+  if (!text.includes('Day-off pack done') || !text.includes('Room to save this month') || !text.includes('Left is room to start saving.')) {
     throw new Error(`positive room feel:\n${text}`)
   }
-  if (!text.includes('HK$1,920') || !text.includes('HK$800')) throw new Error(`positive room numbers:\n${text}`)
-  if (text.includes('HK$2,000') || text.includes('HK$1,200')) throw new Error(`positive room invented installment into out:\n${text}`)
+  if (!text.includes('Pay you entered · Out from what you entered. Nothing we made up.')) throw new Error(`positive room copy:\n${text}`)
+  if (!text.includes('HK$720') || !text.includes('HK$1,200') || !text.includes('HK$2,500') || !text.includes('HK$800') || !text.includes('Installment') || !text.includes('Send home')) {
+    throw new Error(`positive room numbers:\n${text}`)
+  }
+  if (text.includes('You') || text.includes('HK$1,920') || text.includes('HK$0')) throw new Error(`positive room invented You or a different Left:\n${text}`)
   await shot('ft15-after-improve.png')
 
   await clickSel('[data-act="exit"]')
@@ -1382,14 +1391,14 @@ try {
   await shot('ft20-package.png')
   await clickText('Save the package')
   text = await bodyText()
-  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft15') throw new Error(`package save missed room to save:\n${text}`)
-  if (!text.includes('Day-off pack · picked up') || !text.includes('Room to save this month') || !text.includes('HK$1,700')) {
-    throw new Error(`package room:\n${text}`)
+  const afterPackage = await page.$eval('#app', (el) => el.dataset.screen)
+  if (afterPackage === 'ft15' || afterPackage === 'ft08' || text.includes('Room to save this month') || text.includes('HK$1,700')) {
+    throw new Error(`short month opened a room:\n${text}`)
   }
-  if (!text.includes('HK$800') || text.includes('HK$2,800') || text.includes('HK$2,000')) {
-    throw new Error(`package room invented installment into out:\n${text}`)
+  if (afterPackage !== 'o08' || !text.includes('How much will you keep for yourself?')) {
+    throw new Error(`package save should ask for You:\n${text}`)
   }
-  await shot('ft15-after-package.png')
+  await shot('fork-b-after-package.png')
 
   const missing = required.filter((id) => !seen.has(id))
   if (missing.length) throw new Error(`screens not visited: ${missing.join(', ')}`)

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 
 // Published under the repo Pages site, on a preview path.
 export default defineConfig({
-  base: '/Offshore/preview/eleventh/',
+  base: '/Offshore/preview/twelfth/',
   build: {
     outDir: 'dist',
     sourcemap: false,

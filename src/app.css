@@ -192,6 +192,10 @@ button.lifecard, button.owe, button.score {
   font-size: 19px;
   margin-bottom: 2px;
 }
+.note b {
+  display: block;
+  margin-bottom: 4px;
+}
 .chip.amber, .chip.ok {
   display: inline-flex;
   align-items: center;

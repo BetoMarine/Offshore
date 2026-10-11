@@ -25,7 +25,6 @@ import {
   planFigures,
   planPartsEntered,
   monthMath,
-  enteredRoom,
   saveableGap,
   reduceDue,
   roundCents,
@@ -128,6 +127,13 @@ function back() {
 
 function isPackScreen(screen) {
   return screen === 'f07' || screen === 'ft02b' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10' || screen === 'ft15' || screen === 'ft16' || screen === 'ft17' || screen === 'ft18' || screen === 'ft19' || screen === 'ft20'
+}
+
+/** Room to save only when Left is a real month gap, or a plan gap with no loan month. */
+function monthRoom(current = state) {
+  const month = monthMath(current)
+  if (month) return month.fits
+  return !!saveableGap(current)
 }
 
 function rememberPackAction() {
@@ -671,7 +677,8 @@ function onClick(event) {
     state.checks.lastUp = 'day-off pack done.'
     rememberPackAction()
     saveState(state)
-    if (saveableGap(state)) return go(packFreedRoom(state) ? 'ft09' : 'ft08')
+    if (packFreedRoom(state)) return go('ft09')
+    if (monthRoom(state)) return go('ft08')
     if (!planPartsEntered(state)) return go('ft02b')
     return back()
   }
@@ -681,11 +688,11 @@ function onClick(event) {
     if (!state.fix.lastAction) state.fix.lastAction = 'Set aside what you can · toward a cushion'
     saveState(state)
     if (packFreedRoom(state)) return go('ft09')
-    if (enteredRoom(state) || saveableGap(state)) return go('ft15')
+    if (monthRoom(state)) return go('ft08')
     if (!planPartsEntered(state)) return go('o08')
     return back()
   }
-  if (act === 'start-cushion') return enteredRoom(state) ? go('ft15') : go('ft10')
+  if (act === 'start-cushion') return monthRoom(state) ? go('ft15') : go('ft10')
   if (act === 'see-package') return go('ft20')
   if (act === 'save-package') {
     state.sundayPack = { ...(state.sundayPack || {}), started: true }
@@ -693,7 +700,7 @@ function onClick(event) {
     const month = monthMath(state)
     if (month) state.fix.lastAction = `Ask for ${hk(month.proposed)} a month`
     saveState(state)
-    if (enteredRoom(state) || saveableGap(state)) return go('ft15')
+    if (monthRoom(state)) return go('ft08')
     if (!planPartsEntered(state)) return go('o08')
     return go(planScreen())
   }
@@ -712,7 +719,7 @@ function onClick(event) {
     if (planPartsEntered(state)) return go(planScreen())
     return back()
   }
-  if (act === 'gap-go') return (saveableGap(state) || enteredRoom(state)) ? go('ft10') : leavePack()
+  if (act === 'gap-go') return (monthRoom(state) || saveableGap(state)) ? go('ft10') : leavePack()
   if (act === 'pack-later') return leavePack()
   if (act === 'cushion-you') {
     state.returnTo = 'plan'
@@ -748,7 +755,7 @@ function onClick(event) {
     state.sundayPack = { ...(state.sundayPack || {}), started: true }
     saveState(state)
     if (packFreedRoom(state)) return go('ft09')
-    if (saveableGap(state)) return go('ft15')
+    if (monthRoom(state)) return go('ft15')
     if (state.planSet) return go('o11')
     const late = (state.lenders || []).some((lender) => lender.overdue && money(lender.overdueAmount) > 0)
     if (!planPartsEntered(state)) return go(late ? 'ft02b' : 'o05')
