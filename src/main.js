@@ -125,7 +125,16 @@ function back() {
 }
 
 function isPackScreen(screen) {
-  return screen === 'f07' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10' || screen === 'ft15'
+  return screen === 'f07' || screen === 'ft02b' || screen === 'ft03' || screen === 'ft08' || screen === 'ft09' || screen === 'ft10' || screen === 'ft15'
+}
+
+function rememberPackAction() {
+  const stored = String(state.fix?.lastAction || '').trim()
+  const dead = !stored || /^you have not picked one yet\.?$/i.test(stored) || /you have not created any actions/i.test(stored)
+  if (!dead) return
+  const lender = (state.lenders || []).find((item) => item.overdue && money(item.overdueAmount) > 0)
+  if (!lender) return
+  state.fix.lastAction = `Catch up ${lender.name} · ${hk(lender.overdueAmount)} · what you can`
 }
 
 function leavePack() {
@@ -647,9 +656,12 @@ function onClick(event) {
   if (act === 'dayoff-done') {
     state.sundayPack = { ...(state.sundayPack || {}), started: true }
     state.checks.lastUp = 'day-off pack done.'
+    rememberPackAction()
     saveState(state)
-    if (!saveableGap(state)) return back()
-    return go(packFreedRoom(state) ? 'ft09' : 'ft08')
+    if (saveableGap(state)) return go(packFreedRoom(state) ? 'ft09' : 'ft08')
+    const late = (state.lenders || []).some((lender) => lender.overdue && money(lender.overdueAmount) > 0)
+    if (!planPartsEntered(state) && late) return go('ft02b')
+    return back()
   }
   if (act === 'gap-go') return saveableGap(state) ? go('ft10') : leavePack()
   if (act === 'pack-later') return leavePack()
@@ -688,7 +700,10 @@ function onClick(event) {
     saveState(state)
     if (packFreedRoom(state)) return go('ft09')
     if (saveableGap(state)) return go('ft15')
-    return go(state.planSet ? 'o11' : 'o01')
+    if (state.planSet) return go('o11')
+    const late = (state.lenders || []).some((lender) => lender.overdue && money(lender.overdueAmount) > 0)
+    if (!planPartsEntered(state)) return go(late ? 'ft02b' : 'o05')
+    return go('o01')
   }
   if (act === 'pack-not-now') return go('o00')
   if (act === 'fix-fit') return go('f01')

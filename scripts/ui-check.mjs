@@ -6,14 +6,14 @@ import puppeteer from 'puppeteer-core'
 import { projectFund, projectGoal } from '../src/logic.js'
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url))
-const prefix = '/Offshore/preview/ninth'
+const prefix = '/Offshore/preview/tenth'
 const shots = '/opt/cursor/artifacts'
 const required = [
   'o00', 'o01', 'o02', 'o02a', 'o02b', 'o02c', 'o02d', 'o02e', 'o02f', 'o02g', 'o02g2', 'o02g3', 'o02h',
   'o03', 'o04', 'o05', 'o06', 'o07', 'o08', 'o09', 'o10', 'o11', 'o12',
   'o13', 'o14', 'o15', 'o16', 'o17', 'o18', 'o19', 'o20', 'o21', 'o22a', 'o22b',
   'o23', 'o24', 'o25', 'o26', 'o27', 'o28', 'o29', 'o30', 'o31', 'o32', 'o33', 'o34', 'o35', 'parts', 'o02r',
-  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'f07', 'ft00', 'ft03', 'ft05', 'ft07', 'ft08', 'ft09', 'ft10', 'ft14', 'ft15', 'papers', 'papers-who', 'send', 'l20', 'l24',
+  'f01', 'f02', 'f04', 'f05', 'f06a', 'f06b', 'f06d', 'f07', 'ft00', 'ft02b', 'ft03', 'ft05', 'ft07', 'ft08', 'ft09', 'ft10', 'ft14', 'ft15', 'papers', 'papers-who', 'send', 'l20', 'l24',
 ]
 
 const types = {
@@ -195,6 +195,36 @@ async function fill(label, value) {
     el.value = next
     el.dispatchEvent(new Event('input', { bubbles: true }))
   }, value)
+}
+
+async function typeMoney(label, value) {
+  await page.waitForSelector(`[aria-label="${label}"]`)
+  const point = await page.$eval(`[aria-label="${label}"]`, (el) => {
+    const field = el.closest('.field')
+    const rect = field.getBoundingClientRect()
+    return { x: rect.left + 16, y: rect.top + rect.height / 2 }
+  })
+  await page.mouse.click(point.x, point.y)
+  const focused = await page.$eval(`[aria-label="${label}"]`, (el) => document.activeElement === el)
+  if (!focused) throw new Error(`${label} did not focus from the HK$ side`)
+  await page.keyboard.type(value, { delay: 15 })
+  const got = await page.$eval(`[aria-label="${label}"]`, (el) => el.value)
+  if (got !== value) throw new Error(`typed ${label} stored "${got}"`)
+  const nextOff = await page.$eval('[data-act="next"]', (el) => el.disabled)
+  if (nextOff) throw new Error(`${label} Next stayed off after typing`)
+}
+
+function assertOverduePack(text, name, amount) {
+  const late = `${name} overdue ${amount}`
+  const action = `Catch up ${name} · ${amount} · what you can`
+  if (!text.includes(late)) throw new Error(`late line missing (${late}):\n${text}`)
+  if (!text.includes(action)) throw new Error(`action line missing (${action}):\n${text}`)
+  if (/you have not picked one yet|you have not created any actions/i.test(text)) {
+    throw new Error(`empty pack action:\n${text}`)
+  }
+  if (text.includes('Nothing late')) throw new Error(`Nothing late showed with overdue:\n${text}`)
+  const actionBlock = text.split('Your action')[1] || ''
+  if (!actionBlock.trim()) throw new Error(`blank Your action:\n${text}`)
 }
 
 async function bodyText() {
@@ -418,6 +448,10 @@ try {
   await tapAct('sunday-pack')
   text = await bodyText()
   if (!text.includes('For your day off')) throw new Error(`short-path Sunday Pack did not open:\n${text}`)
+  assertOverduePack(text, 'Card', 'HK$500')
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await shot('ft02-card-overdue.png')
+  await page.setViewport({ width: 390, height: 640, deviceScaleFactor: 1 })
   await clickSel('[data-act="back"]')
   if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('Sunday Pack back left your pay, your plan')
   await page.setViewport({ width: 390, height: 664, deviceScaleFactor: 1 })
@@ -442,7 +476,7 @@ try {
   if (!longFit.overflows || !longFit.buttonStays) throw new Error(`long text did not keep the button reachable ${JSON.stringify(longFit)}`)
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
   await clickText('Start my plan')
-  await fill('Amount', '2000')
+  await typeMoney('Amount', '2000')
   await clickText('Next')
   text = await bodyText()
   if (!text.includes('How much for your other bills each month?')) throw new Error(`bills question missing:\n${text}`)
@@ -450,7 +484,7 @@ try {
   if (!text.includes('Bills part: HK$0')) throw new Error(`bills were prefilled:\n${text}`)
   if (!text.includes('Only what you type here. Loan dues stay on Card.')) throw new Error(`bills read-back missing:\n${text}`)
   if (/Includes .*for what you owe|Catch up/i.test(text)) throw new Error(`dues leaked into bills:\n${text}`)
-  await fill('Amount', '500')
+  await typeMoney('Amount', '500')
   text = await bodyText()
   if (!text.includes('Bills part: HK$500')) throw new Error(`bills did not stay other-only:\n${text}`)
   if (text.includes('HK$1,760') || text.includes('HK$1,260')) throw new Error(`dues were added into bills:\n${text}`)
@@ -1148,6 +1182,59 @@ try {
   }
   if (!text.includes('HK$4,000')) throw new Error(`resume gap left missing:\n${text}`)
   await clickText('Done for now')
+
+  await clickSel('[data-act="exit"]')
+  await clickText('Erase my data')
+  await clickText('Erase everything')
+  await page.waitForFunction(() => document.querySelector('#app')?.dataset.screen === 'o00')
+  await clickText('Start')
+  await clickSel('[data-door="fix"]')
+  await typeMoney('Amount', '5000')
+  await clickText('Next')
+  await clickText('Yes')
+  await fill('Who', 'Agency')
+  await clickText('Next')
+  await typeMoney('Amount', '10000')
+  await clickText('Next')
+  await clickText("I don't know")
+  await typeMoney('Amount', '1200')
+  await clickText('Next')
+  await fill('Next date', '2026-11-15')
+  await clickText('Next')
+  await clickText('Yes')
+  await typeMoney('Amount', '2400')
+  await clickText('Next')
+  await fill('Overdue since', '2026-09-01')
+  await clickText('Next')
+  await clickText("That's all")
+  await clickText('Next')
+  await clickText('Next')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o05') throw new Error('overdue path missed your pay, your plan')
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await assertShown('sunday-pack')
+  await tapAct('sunday-pack')
+  text = await bodyText()
+  if (!text.includes('For your day off')) throw new Error(`overdue pack did not open:\n${text}`)
+  assertOverduePack(text, 'Agency', 'HK$2,400')
+  await shot('ft02-agency-overdue.png')
+  await clickText('Done')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'ft02b') {
+    throw new Error(`pack Done did not open FT02b:\n${await bodyText()}`)
+  }
+  text = await bodyText()
+  assertOverduePack(text, 'Agency', 'HK$2,400')
+  if (!text.includes('Catch up what you can')) throw new Error(`FT02b copy missing:\n${text}`)
+  await shot('ft02b-after-pack.png')
+  await clickText('Start my plan')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o06') throw new Error('FT02b did not open Home')
+  await typeMoney('Amount', '1800')
+  await clickText('Next')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o07') throw new Error('Home Next did not open Bills')
+  await typeMoney('Amount', '400')
+  text = await bodyText()
+  if (!text.includes('Bills part: HK$400')) throw new Error(`bills did not take the typed amount:\n${text}`)
+  await clickText('Next')
+  if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o08') throw new Error('Bills Next did not open You')
 
   const missing = required.filter((id) => !seen.has(id))
   if (missing.length) throw new Error(`screens not visited: ${missing.join(', ')}`)

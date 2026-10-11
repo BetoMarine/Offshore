@@ -64,12 +64,14 @@ button, input { font-family: inherit; color: inherit; }
   padding: 28px 28px max(34px, env(safe-area-inset-bottom));
 }
 .blank-home { width: 100%; }
+.field .cur { pointer-events: none; }
 .field input {
   border: 0;
   background: transparent;
   font: inherit;
   color: inherit;
-  width: 100%;
+  flex: 1 1 auto;
+  width: 0;
   min-width: 0;
   padding: 0;
 }

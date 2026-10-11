@@ -211,10 +211,25 @@ function enteredFact(state) {
   return `<div class="fact"><b>You entered</b>${bits.join(' · ')}</div>`
 }
 
+function deadPackAction(action) {
+  const text = String(action || '').trim()
+  return !text || /^you have not picked one yet\.?$/i.test(text) || /you have not created any actions/i.test(text)
+}
+
+function packSuggestion(state) {
+  const late = lateLenders(state)[0]
+  if (late) return `Catch up ${late.name} · ${hk(late.overdueAmount)} · what you can`
+  const lender = (state.lenders || []).find((item) => money(item.due) > 0) || (state.lenders || [])[0]
+  if (!lender) return ''
+  const due = money(lender.due) > 0 ? ` · ${hk(lender.due)}` : ''
+  return `Pay ${lender.name}${due}`
+}
+
 function packAction(state) {
-  const action = state.fix?.lastAction || ''
-  if (!lateLenders(state).length && /catch up/i.test(action)) return 'You have not picked one yet.'
-  return action || 'You have not picked one yet.'
+  const stored = String(state.fix?.lastAction || '').trim()
+  const late = lateLenders(state)
+  if (!deadPackAction(stored) && (late.length || !/catch up/i.test(stored))) return stored
+  return packSuggestion(state) || 'You have not picked one yet.'
 }
 
 function packWeek(state) {
@@ -223,11 +238,15 @@ function packWeek(state) {
     ? dues.map((lender) => `<div class="row"><span>Due this week</span><span class="v">${esc(lender.name)} · ${esc(shortDate(lender.nextDate))} · ${hk(lender.due)}</span></div>`).join('')
     : '<div class="row"><span>Due this week</span><span class="v">Nothing due this week</span></div>'
   const lates = lateLenders(state)
+  const flagged = (state.lenders || []).filter((lender) => lender.overdue)
   const late = lates.length
-    ? lates.map((lender) => `<button type="button" class="chip amber" data-act="mark-paid" data-index="${state.lenders.indexOf(lender)}">${esc(lender.name)} ${hk(lender.overdueAmount)}</button>`).join('')
-    : '<span class="v">Nothing late</span>'
+    ? lates.map((lender) => `<button type="button" class="chip amber" data-act="mark-paid" data-index="${state.lenders.indexOf(lender)}">${esc(lender.name)} overdue ${hk(lender.overdueAmount)}</button>`).join('')
+    : flagged.length
+      ? flagged.map((lender) => `<span class="v">${esc(lender.name)} overdue</span>`).join('')
+      : '<span class="v">Nothing late</span>'
+  const action = packAction(state)
   return `<div class="week">${dueRows}<div class="row"><span>Late</span><span class="v">${late}</span></div></div>
-    <div class="actionpick"><b>Your action</b>${esc(packAction(state))}</div>`
+    <div class="actionpick"><b>Your action</b>${esc(action)}</div>`
 }
 
 function lateLenders(state) {
@@ -950,6 +969,16 @@ const pages = {
         ${packWeek(state)}
         <div class="saved">${LOCK}<span>Saved on this phone. We\u2019ll pick this up next time you open.</span></div>`,
       actions: primary('Done', 'dayoff-done'),
+    })
+  },
+  ft02b(state) {
+    return shell({
+      stepper: 'Day off',
+      body: `<span class="followchip">Day-off pack done</span>
+        <h1>Catch up what you can</h1>
+        <p class="body">Late stays on the card. Pay what you can. Home and bills are still yours to type.</p>
+        ${packWeek(state)}`,
+      actions: `${primary('Start my plan', 'to-home')}${quiet('Not now', 'pack-later')}`,
     })
   },
   ft00(state) {
