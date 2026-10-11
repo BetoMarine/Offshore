@@ -217,12 +217,18 @@ async function typeMoney(label, value) {
 function assertOverduePack(text, name, amount) {
   const late = `${name} overdue ${amount}`
   const action = `Catch up ${name} · ${amount} · what you can`
+  if (!text.includes('One thing for Sunday. From what you owe — not a blank list.')) {
+    throw new Error(`day-off body missing:\n${text}`)
+  }
+  if (!text.includes(`${name} · when you can`)) throw new Error(`due line missing:\n${text}`)
   if (!text.includes(late)) throw new Error(`late line missing (${late}):\n${text}`)
   if (!text.includes(action)) throw new Error(`action line missing (${action}):\n${text}`)
   if (/you have not picked one yet|you have not created any actions/i.test(text)) {
     throw new Error(`empty pack action:\n${text}`)
   }
-  if (text.includes('Nothing late')) throw new Error(`Nothing late showed with overdue:\n${text}`)
+  if (text.includes('Nothing late') || text.includes('Nothing due this week')) {
+    throw new Error(`blank pack list:\n${text}`)
+  }
   const actionBlock = text.split('Your action')[1] || ''
   if (!actionBlock.trim()) throw new Error(`blank Your action:\n${text}`)
 }
@@ -1222,8 +1228,19 @@ try {
     throw new Error(`pack Done did not open FT02b:\n${await bodyText()}`)
   }
   text = await bodyText()
-  assertOverduePack(text, 'Agency', 'HK$2,400')
-  if (!text.includes('Catch up what you can')) throw new Error(`FT02b copy missing:\n${text}`)
+  if (!text.includes('Your Sunday action is set')) throw new Error(`FT02b title missing:\n${text}`)
+  if (!text.includes('Catch up Agency · HK$2,400 · what you can. Saved on this phone.')) {
+    throw new Error(`FT02b action missing:\n${text}`)
+  }
+  if (!text.includes('Next when you can') || !text.includes('Catch up Agency · HK$2,400')) {
+    throw new Error(`FT02b next line missing:\n${text}`)
+  }
+  if (!text.includes('Home · Bills · You stay yours to enter later. Nothing frozen.')) {
+    throw new Error(`FT02b strip missing:\n${text}`)
+  }
+  if (/you have not picked one yet|you have not created any actions/i.test(text)) {
+    throw new Error(`FT02b empty action:\n${text}`)
+  }
   await shot('ft02b-after-pack.png')
   await clickText('Start my plan')
   if ((await page.$eval('#app', (el) => el.dataset.screen)) !== 'o06') throw new Error('FT02b did not open Home')

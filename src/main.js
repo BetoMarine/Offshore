@@ -133,8 +133,12 @@ function rememberPackAction() {
   const dead = !stored || /^you have not picked one yet\.?$/i.test(stored) || /you have not created any actions/i.test(stored)
   if (!dead) return
   const lender = (state.lenders || []).find((item) => item.overdue && money(item.overdueAmount) > 0)
+    || (state.lenders || []).find((item) => item.overdue)
   if (!lender) return
-  state.fix.lastAction = `Catch up ${lender.name} · ${hk(lender.overdueAmount)} · what you can`
+  const amount = money(lender.overdueAmount)
+  state.fix.lastAction = amount > 0
+    ? `Catch up ${lender.name} · ${hk(amount)} · what you can`
+    : `Catch up ${lender.name} · what you can`
 }
 
 function leavePack() {
@@ -659,8 +663,7 @@ function onClick(event) {
     rememberPackAction()
     saveState(state)
     if (saveableGap(state)) return go(packFreedRoom(state) ? 'ft09' : 'ft08')
-    const late = (state.lenders || []).some((lender) => lender.overdue && money(lender.overdueAmount) > 0)
-    if (!planPartsEntered(state) && late) return go('ft02b')
+    if (!planPartsEntered(state)) return go('ft02b')
     return back()
   }
   if (act === 'gap-go') return saveableGap(state) ? go('ft10') : leavePack()
